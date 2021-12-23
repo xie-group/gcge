@@ -104,6 +104,12 @@ void OPS_Setup   (OPS  *ops)
 	if (ops->DenseMatOrth == NULL) {
 		ops->DenseMatOrth = ops->lapack_ops->DenseMatOrth;
 	}
+//	if (ops->VecFromItoJ == NULL) {
+//		ops->VecFromItoJ = DefaultVecFromItoJ;
+//	}
+//	if (ops->MultiVecFromItoJ == NULL) {
+//		ops->MultiVecFromItoJ = DefaultMultiVecFromItoJ;
+//	}
 	if (ops->MultiVecInnerProd == NULL) {
 		ops->MultiVecInnerProd = DefaultMultiVecInnerProd;
 	}

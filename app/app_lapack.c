@@ -442,7 +442,6 @@ static void MatTransDotMultiVec (LAPACKMAT *mat, LAPACKVEC *x,
 	assert(end[0]-start[0]==end[1]-start[1]);
 	assert(y->nrows==y->ldd);
 	assert(x->nrows==x->ldd);
-	//char charT = 'T'; 
 	char charN = 'N'; double alpha = 1.0, beta = 0.0;
 	int  ncols = end[1]-start[1];
 

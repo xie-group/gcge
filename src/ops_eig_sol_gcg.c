@@ -17,7 +17,7 @@
 #include    <memory.h>
 #include    <assert.h>
 #include    <time.h>
-
+#include    <float.h>
 #include    "ops_eig_sol_gcg.h"
 
 #define     DEBUG 0
@@ -1261,7 +1261,7 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 	gcg_solver->nevGiven = nevGiven;
 	gcg_solver->nevConv  = *nevConv;	
 	ops_gcg = ops;
-	int    nevMax, multiMax, block_size, nevInit, nev0, nev;
+	int    nevMax, block_size, nevInit, nev0, nev;
 	int    numIterMax, numIter, numCheck;
 	void   **V, **ritz_vec;
 	double *ss_matA, *ss_diag, *ss_eval, *ss_evec, *tol;
@@ -1270,14 +1270,12 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 	nevInit    = gcg_solver->nevInit   ;
 	nevMax     = gcg_solver->nevMax    ; 
 	block_size = gcg_solver->block_size; 
-	multiMax   = gcg_solver->multiMax  ; 
 	/*  工作空间基于 nevInit nevMax block_size 分配 */
 	assert(nevInit >= nevGiven);
 	assert(nevInit <= nevMax);
 	assert(nevInit >= 3*block_size || nevInit==nevMax);
 	assert(nevMax  >= *nevConv+block_size);
 	assert(nevMax  <= *nevConv+nevInit);
-	assert(multiMax<= block_size);
 	/* 初始给出的 sizeX == nevInit 比最终要计算的 sizeX = nevMax 要小
 	 * 这样的好处是, dsyevx_ 的规模较小, 但 gcg 整体迭代次数变大, 
 	 * 当特征值个数真的非常大时会由效果 */
@@ -1559,7 +1557,7 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 
 /* 设定 GCG 的工作空间 */
 void EigenSolverSetup_GCG(
-	int    multiMax, double gapMin , 
+	double gapMin , 
 	int    nevInit , int    nevMax , int block_size, 
 	double tol[2]  , int    numIterMax, 
 	int user_defined_multi_linear_solver,
@@ -1567,7 +1565,7 @@ void EigenSolverSetup_GCG(
 	struct OPS_ *ops)
 {
 	static GCGSolver gcg_solver_static = {
-		.nevMax     = 3 , .multiMax   = 2, .gapMin = 0.01, 
+		.nevMax     = 3 , .gapMin = 0.01, 
 		.nevInit    = 3 , .nevGiven   = 0,
 		.block_size = 1 , .numIterMax = 4, .user_defined_multi_linear_solver = 0,
 		.mv_ws      = {}, .dbl_ws  = NULL, .int_ws = NULL,		
@@ -1597,7 +1595,6 @@ void EigenSolverSetup_GCG(
 		.compRR_tol            = 1e-16,
 	};
 		
-	gcg_solver_static.multiMax   = multiMax;
 	gcg_solver_static.gapMin     = gapMin;	 
 	gcg_solver_static.nevInit    = nevInit;
 	gcg_solver_static.nevMax     = nevMax;
@@ -1739,8 +1736,6 @@ void EigenSolverSetParametersFromCommandLine_GCG(
 {
 	struct GCGSolver_ *gcg_solver = (GCGSolver*)ops->eigen_solver_workspace;
 
-	ops->GetOptionFromCommandLine("-gcge_max_multi"  ,'i',
-		&gcg_solver->multiMax  ,argc,argv, ops);
 	ops->GetOptionFromCommandLine("-gcge_min_gap"    ,'f',
 		&gcg_solver->gapMin    ,argc,argv, ops);
 	ops->GetOptionFromCommandLine("-gcge_given_nevec",'i',
@@ -1812,7 +1807,6 @@ void EigenSolverSetParametersFromCommandLine_GCG(
        ops->Printf("\n");
        ops->Printf("Usage: %s [<options>]\n", argv[0]);
        ops->Printf("---------------------------------------------------------------------------------------------------\n");
-       ops->Printf(" -gcge_max_multi    <i>: maximum of multiplicity of eigenpairs       %d (default: 6)\n",gcg_solver->multiMax);
        ops->Printf(" -gcge_min_gap      <f>: minimum of gap of eigenvalues relatively    %.2e (default: 1e-2)\n",gcg_solver->gapMin);
        ops->Printf("---------------------------------------------------------------------------------------------------\n");
        ops->Printf(" -gcge_max_niter    <i>: maximum of gcg iterations                   %d (default: 100)\n",gcg_solver->numIterMax);
@@ -1861,4 +1855,68 @@ void EigenSolverSetParametersFromCommandLine_GCG(
        //ops->Printf(" -bpcg_print_res        <i>: print residual per five bpcg iteration  (default: 1[0])\n");
     }
 	return;	
+}
+
+void GCGE_Create(void *A, int nevMax, int block_size, int nevInit, void ***gcg_mv_ws, double *dbl_ws, int *int_ws, 
+	struct OPS_ *ops) 
+{
+	ops->MultiVecCreateByMat(&gcg_mv_ws[0],nevMax+2*block_size,A,ops);				
+	ops->MultiVecSetRandomValue(gcg_mv_ws[0],0,nevMax+2*block_size,ops);
+	ops->MultiVecCreateByMat(&gcg_mv_ws[1],block_size,A,ops);				
+	ops->MultiVecSetRandomValue(gcg_mv_ws[1],0,block_size,ops);
+	ops->MultiVecCreateByMat(&gcg_mv_ws[2],block_size,A,ops);				
+	ops->MultiVecSetRandomValue(gcg_mv_ws[2],0,block_size,ops);
+	ops->MultiVecCreateByMat(&gcg_mv_ws[3],block_size,A,ops);				
+	ops->MultiVecSetRandomValue(gcg_mv_ws[3],0,block_size,ops);
+	return;
+}
+void GCGE_Setparameters(double gapMin, struct OPS_ *ops) 
+{
+	int    check_conv_max_num    = 50   ;
+		
+	char   initX_orth_method[8]  = "mgs"; 
+	int    initX_orth_block_size = -1   ; 
+	int    initX_orth_max_reorth = 2    ; double initX_orth_zero_tol    = 2*DBL_EPSILON;//1e-12
+	
+	char   compP_orth_method[8]  = "mgs"; 
+	int    compP_orth_block_size = -1   ; 
+	int    compP_orth_max_reorth = 2    ; double compP_orth_zero_tol    = 2*DBL_EPSILON;//1e-12
+	
+	char   compW_orth_method[8]  = "mgs";
+	int    compW_orth_block_size = -1   ; 	
+	int    compW_orth_max_reorth = 2    ;  double compW_orth_zero_tol   = 2*DBL_EPSILON;//1e-12
+	int    compW_bpcg_max_iter   = 30   ;  double compW_bpcg_rate       = 1e-2; 
+	double compW_bpcg_tol        = 1e-14;  char   compW_bpcg_tol_type[8] = "abs";
+	
+	int    compRR_min_num        = -1   ;  double compRR_min_gap        = gapMin;
+	double compRR_tol            = 2*DBL_EPSILON;
+	//double compRR_tol            = 0.0  ; 
+			
+	/* 设定 GCG 的算法参数 */
+	EigenSolverSetParameters_GCG(
+			check_conv_max_num   ,
+			initX_orth_method    , initX_orth_block_size, 
+			initX_orth_max_reorth, initX_orth_zero_tol  ,
+			compP_orth_method    , compP_orth_block_size, 
+			compP_orth_max_reorth, compP_orth_zero_tol  ,
+			compW_orth_method    , compW_orth_block_size, 
+			compW_orth_max_reorth, compW_orth_zero_tol  ,
+			compW_bpcg_max_iter  , compW_bpcg_rate      , 
+			compW_bpcg_tol       , compW_bpcg_tol_type  , 1, // without shift
+			compRR_min_num       , compRR_min_gap       ,
+			compRR_tol           ,  
+			ops);		
+
+	return;	
+/* 命令行获取 GCG 的算法参数 勿用 有 BUG, 
+	 * 不应该改变 nevMax nevInit block_size, 这些与工作空间有关 */
+}
+void GCGE_Destroymvws(void ***gcg_mv_ws, double *dbl_ws, int *int_ws, int nevMax, int block_size, struct OPS_ *ops) 
+{
+	ops->MultiVecDestroy(&gcg_mv_ws[0],nevMax+2*block_size,ops);
+	ops->MultiVecDestroy(&gcg_mv_ws[1],block_size,ops);
+	ops->MultiVecDestroy(&gcg_mv_ws[2],block_size,ops);
+	ops->MultiVecDestroy(&gcg_mv_ws[3],block_size,ops);
+	free(dbl_ws); free(int_ws);
+	return;
 }

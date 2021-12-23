@@ -21,7 +21,7 @@
 typedef struct GCGSolver_ {
 	void   *A        ; void  *B      ; double sigma;
 	double *eval     ; void  **evec  ; 
-	int    nevMax    ; int   multiMax; double gapMin;
+	int    nevMax    ; double gapMin;
 	int    nevInit   ; int   nevGiven; int    nevConv;
 	/* 绝对误差, 相对误差 */
 	int    block_size; double tol[2] ; int numIterMax; 
@@ -52,7 +52,7 @@ typedef struct GCGSolver_ {
 
 /* 设定 GCG 的工作空间 */
 void EigenSolverSetup_GCG(
-	int    multiMax, double gapMin, 
+	double gapMin, 
 	int    nevInit , int    nevMax, int block_size,
 	double tol[2]  , int    numIterMax,
 	int    user_defined_multi_linear_solver,
@@ -81,5 +81,13 @@ void EigenSolverSetParameters_GCG(
 
 void EigenSolverSetParametersFromCommandLine_GCG(
 	int argc, char* argv[], struct OPS_ *ops);
+
+void GCGE_Create(void *A, int nevMax, int block_size, int nevInit, void ***gcg_mv_ws, double *dbl_ws, int *int_ws, 
+	struct OPS_ *ops);
+
+void GCGE_Setparameters(double gapMin, struct OPS_ *ops);
+
+void GCGE_Destroymvws(void ***gcg_mv_ws, double *dbl_ws, int *int_ws, int nevMax, int block_size, struct OPS_ *ops);
+
 #endif  /* -- #ifndef _OPS_EIG_SOL_GCG_H_ -- */
 

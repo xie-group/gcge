@@ -1,0 +1,4 @@
+bashrc 添加PETSc和SLEPc的路径
+Makeifle SLEPC=true
+ops_config.h 宏定义改为1
+
