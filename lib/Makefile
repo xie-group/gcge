@@ -78,7 +78,7 @@ test_vec.o: test_vec.c
 ../src/ops_orth.o: ../src/ops_orth.c
 	$(CC) -c ../src/ops_orth.c -o ../src/ops_orth.o $(CFLAGS)
 
-../app/app_ccs.o: ../app/app_ccs.o
+../app/app_ccs.o: ../app/app_ccs.c
 	$(CC) -c ../app/app_ccs.c -o ../app/app_ccs.o $(CFLAGS)
 
 clean: 
