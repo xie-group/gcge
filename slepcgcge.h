@@ -24,8 +24,6 @@
 #include	<petscpc.h>
 #include	<slepcbv.h>
 
-void OPS_SLEPC_Set (struct OPS_ *ops);
-void GetPetscMat(Mat *A, Mat *B, PetscInt n, PetscInt m);
 
 #endif  /* -- #ifndef _APP_SLEPC_H_ -- */
 

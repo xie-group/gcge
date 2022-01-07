@@ -1,38 +1,19 @@
-#include	<stdio.h>
-#include	<stdlib.h>
-#include	<assert.h>
-#include  	<math.h>
-#include   	<memory.h>
-#include    	<assert.h>
-#include    	<float.h> 
-#include	"slepcgcge.h"
-#include    	"ops.h"
-#include    	"ops_eig_sol_gcg.h"
+#include <slepc/private/epsimpl.h> 
+#include "slepcgcge.h"
+#include <assert.h>
+#include "ops_eig_sol_gcg.h"
 
-
-
-
-/* 进程分组, 主要用于 AMG, 默认最大层数是16 */ 
-int       MG_COMM_COLOR[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-/* 能否这样赋初值 尤其时 MPI_COMM_WORLD 
- * 另外, 这些创建出来的通讯域可以 MPI_Comm_free 吗? 何时 */ 
-MPI_Comm  MG_COMM[16][2] = {
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL},
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL},
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL},
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL},
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL},
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL},
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL},
-	{MPI_COMM_NULL,MPI_COMM_NULL},{MPI_COMM_NULL,MPI_COMM_NULL}
-};
-MPI_Comm  MG_INTERCOMM[16] = {
-	MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL,
-	MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL,
-	MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL,
-	MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL,MPI_COMM_NULL
-};
-
+typedef struct {
+  OPS                  *gcgeops;   
+  PetscInt             block_size;
+  PetscInt             nevConv;
+  PetscInt             nevInit; 
+  PetscInt             nevMax; 
+  PetscInt             nevGiven;
+  PetscInt             max_iter_gcg;   
+  PetscReal            tol_gcg[2];
+  PetscReal            gapMin;
+} EPS_GCGE;
 
 /* multi-vec */
 static void MultiVecCreateByMat (BV *des_bv, int num_vec, Mat src_mat, struct OPS_ *ops)
@@ -260,12 +241,12 @@ static void MultiVecLinearComb (BV x, BV y, int is_vec,
     return;
 }
 /* Encapsulation */
-static void SLEPC_MatView (void *mat, struct OPS_ *ops)
+static void MatView_GCGE (void *mat, struct OPS_ *ops)
 {
 	MatView((Mat)mat,PETSC_VIEWER_STDOUT_WORLD);
 	return;
 }
-static void SLEPC_MatAxpby (double alpha, void *matX, 
+static void MatAxpby_GCGE (double alpha, void *matX, 
 		double beta, void *matY, struct OPS_ *ops)
 {
 	/* y = alpha x + beta y */
@@ -291,22 +272,22 @@ static void SLEPC_MatAxpby (double alpha, void *matX,
 	return;
 }
 /* multi-vec */
-static void SLEPC_MultiVecCreateByMat (void ***des_vec, int num_vec, void *src_mat, struct OPS_ *ops)
+static void MultiVecCreateByMat_GCGE (void ***des_vec, int num_vec, void *src_mat, struct OPS_ *ops)
 {
 	MultiVecCreateByMat ((BV*)des_vec,num_vec,(Mat)src_mat,ops);		
 	return;
 }
-static void SLEPC_MultiVecDestroy (void ***des_vec, int num_vec, struct OPS_ *ops)
+static void MultiVecDestroy_GCGE (void ***des_vec, int num_vec, struct OPS_ *ops)
 {
 	MultiVecDestroy ((BV*)des_vec,num_vec,ops);
 	return;
 }
-static void SLEPC_MultiVecView (void **x, int start, int end, struct OPS_ *ops)
+static void MultiVecView_GCGE (void **x, int start, int end, struct OPS_ *ops)
 {
 	MultiVecView ((BV)x,start,end,ops);
 	return;
 }
-static void SLEPC_MultiVecLocalInnerProd (char nsdIP, 
+static void MultiVecLocalInnerProd_GCGE (char nsdIP, 
 		void **x, void **y, int is_vec, int *start, int *end, 
 		double *inner_prod, int ldIP, struct OPS_ *ops)
 {
@@ -315,30 +296,30 @@ static void SLEPC_MultiVecLocalInnerProd (char nsdIP,
 			inner_prod,ldIP,ops);
 	return;
 }
-static void SLEPC_MultiVecSetRandomValue (void **x, int start, int end, struct OPS_ *ops)
+static void MultiVecSetRandomValue_GCGE (void **x, int start, int end, struct OPS_ *ops)
 {
 	MultiVecSetRandomValue ((BV)x,start,end,ops);
 	return;
 }
-static void SLEPC_MultiVecAxpby (double alpha, void **x, 
+static void MultiVecAxpby_GCGE (double alpha, void **x, 
 		double beta, void **y, int *start, int *end, struct OPS_ *ops)
 {
 	MultiVecAxpby (alpha,(BV)x,beta,(BV)y,start,end,ops);
 	return;
 }
-static void SLEPC_MatDotMultiVec (void *mat, void **x, 
+static void MatDotMultiVec_GCGE (void *mat, void **x, 
 		void **y, int *start, int *end, struct OPS_ *ops)
 {
 	MatDotMultiVec ((Mat)mat,(BV)x,(BV)y,start,end,ops);
 	return;
 }
-static void SLEPC_MatTransDotMultiVec (void *mat, void **x, 
+static void MatTransDotMultiVec_GCGE (void *mat, void **x, 
 		void **y, int *start, int *end, struct OPS_ *ops)
 {
 	MatTransDotMultiVec ((Mat)mat,(BV)x,(BV)y,start,end,ops);
 	return;
 }
-static void SLEPC_MultiVecLinearComb (
+static void MultiVecLinearComb_GCGE (
 		void **x , void **y, int is_vec, 
 		int    *start, int  *end, 
 		double *coef , int  ldc , 
@@ -352,86 +333,8 @@ static void SLEPC_MultiVecLinearComb (
 			beta , incb, ops);
 	return;
 }
-static void SLEPC_MultiVecQtAP (char ntsA, char nsdQAP, 
-		void **mvQ  , void *matA, void   **mvP, int is_vec, 
-		int  *start , int  *end , double *qAp , int ldQAP ,
-		void **mv_ws, struct OPS_ *ops)
-{
-	assert(nsdQAP!='T');
-	assert(is_vec==0);
-	if ( nsdQAP=='D' || ( mvQ==mvP&&(start[0]!=start[1]||end[0]!=end[1]) ) ) {
-		DefaultMultiVecQtAP (ntsA, nsdQAP, 
-				mvQ, matA, mvP, is_vec, 
-				start, end, qAp, ldQAP,
-				mv_ws, ops);
-	}
-	else {
-		BVSetActiveColumns((BV)mvQ, start[0], end[0]);
-		BVSetActiveColumns((BV)mvP, start[1], end[1]);
-		BVSetMatrix((BV)mvP,(Mat)matA,PETSC_FALSE);
-		BVSetMatrix((BV)mvQ,(Mat)matA,PETSC_FALSE);
-		Mat dense_mat; const double *source;
-		int nrows = end[0]-start[0], ncols = end[1]-start[1], col;		
-		MatCreateSeqDense(PETSC_COMM_SELF,end[0],end[1],NULL,&dense_mat);        
-		/* Qt A P */
-		/* M must be a sequential dense Mat with dimensions m,n at least, 
-		 * where m is the number of active columns of Q 
-		 * and n is the number of active columns of P. 
-		 * Only rows (resp. columns) of M starting from ly (resp. lx) are computed, 
-		 * where ly (resp. lx) is the number of leading columns of Q (resp. P). */		
-		BVDot((BV)mvP, (BV)mvQ, dense_mat);		
-		MatDenseGetArrayRead(dense_mat, &source);        
-		/* 当 qAp 连续存储 */
 
-		if (start[0]==0&&ldQAP==nrows) {
-		   memcpy(qAp,source+nrows*start[1],nrows*ncols*sizeof(double)); 	
-		}
-		else {
-		   for(col = 0; col < ncols; ++col) {
-		      memcpy(qAp+ldQAP*col, source+end[0]*(start[1]+col)+start[0], nrows*sizeof(double));
-		   }
-		}
-		MatDenseRestoreArrayRead(dense_mat, &source);
-		MatDestroy(&dense_mat);		
-	}	
-	return;
-}
-
-static void SLEPC_MultiVecInnerProd      (char nsdIP, void **x, void **y, int is_vec, int *start, int *end, 
-	double *inner_prod, int ldIP, struct OPS_ *ops)
-{
-	if ( nsdIP=='D' || ( x==y&&(start[0]!=start[1]||end[0]!=end[1]) ) ) {
-		DefaultMultiVecInnerProd (nsdIP, x, y, is_vec, start, end, 
-			inner_prod, ldIP, ops);
-	}
-	else {
-	   BVSetActiveColumns((BV)x, start[0], end[0]);
-	   BVSetActiveColumns((BV)y, start[1], end[1]);
-	   BVSetMatrix((BV)y,NULL,PETSC_FALSE);
-	   BVSetMatrix((BV)x,NULL,PETSC_FALSE);
-	   Mat dense_mat; const double *source;
-	   int nrows = end[0]-start[0], ncols = end[1]-start[1], col;		
-	   MatCreateSeqDense(PETSC_COMM_SELF,end[0],end[1],NULL,&dense_mat);        
-	   BVDot((BV)y, (BV)x, dense_mat);		
-	   MatDenseGetArrayRead(dense_mat, &source);        
-	   /* 当 inner_prod 连续存储 */
-	   if (start[0]==0&&ldIP==nrows) {
-	      memcpy(inner_prod,source+nrows*start[1],nrows*ncols*sizeof(double)); 	
-	   }
-	   else {
-	      for(col = 0; col < ncols; ++col) {
-		 memcpy(inner_prod+ldIP*col, source+end[0]*(start[1]+col)+start[0], nrows*sizeof(double));
-	      }
-	   }
-	   MatDenseRestoreArrayRead(dense_mat, &source);
-	   MatDestroy(&dense_mat);		
-	}
-	return;
-}
-
-
-
-static int SLEPC_GetOptionFromCommandLine (
+static int GetOptionFromCommandLine_GCGE (
 		const char *name, char type, void *value,
 		int argc, char* argv[], struct OPS_ *ops)
 {
@@ -459,100 +362,66 @@ static int SLEPC_GetOptionFromCommandLine (
 
 
 
-void OPS_SLEPC_Set (struct OPS_ *ops)
+PetscErrorCode EPSSetUp_GCGE(EPS eps)
 {
-	ops->GetOptionFromCommandLine = SLEPC_GetOptionFromCommandLine;
-	/* mat */
-	ops->MatAxpby               = SLEPC_MatAxpby;
-	ops->MatView                = SLEPC_MatView;
-	/* multi-vec */
-	ops->MultiVecCreateByMat    = SLEPC_MultiVecCreateByMat   ;
-	ops->MultiVecDestroy        = SLEPC_MultiVecDestroy       ;
-	ops->MultiVecView           = SLEPC_MultiVecView          ;
-	ops->MultiVecLocalInnerProd = SLEPC_MultiVecLocalInnerProd;
-	ops->MultiVecSetRandomValue = SLEPC_MultiVecSetRandomValue;
-	ops->MultiVecAxpby          = SLEPC_MultiVecAxpby         ;
-	ops->MatDotMultiVec         = SLEPC_MatDotMultiVec        ;
-	ops->MatTransDotMultiVec    = SLEPC_MatTransDotMultiVec   ;
-	ops->MultiVecLinearComb     = SLEPC_MultiVecLinearComb    ;
-	if (0) {// no efficiency
-	   ops->MultiVecQtAP        = SLEPC_MultiVecQtAP          ;
-	   ops->MultiVecInnerProd   = SLEPC_MultiVecInnerProd     ; 
-	}
+    PetscErrorCode ierr;
+	printf("setup begin \n");
+    PetscMPIInt    numProcs,procID;
+    PetscFunctionBegin;
+    ierr = MPI_Comm_size(PetscObjectComm((PetscObject)eps),&numProcs);CHKERRMPI(ierr);
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)eps),&procID);CHKERRMPI(ierr);
+//	EPSCheckUnsupported(eps,EPS_FEATURE_ARBITRARY | EPS_FEATURE_REGION | EPS_FEATURE_STOPPING);
+//  	EPSCheckIgnored(eps,EPS_FEATURE_EXTRACTION | EPS_FEATURE_CONVERGENCE);
 
-	return;
+  	if (!eps->which) eps->which=EPS_ALL;
+//    ierr = EPSAllocateSolution(eps,0);CHKERRQ(ierr);
+	printf("setup end \n");
+    PetscFunctionReturn(0);
+
 }
 
+PetscErrorCode EPSSolve_GCGE(EPS eps)
+{   
+    PetscErrorCode 	ierr;
+  	EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
+	PetscInt 		nevMax, nevInit, nevConv, block_size, nevGiven, max_iter_gcg, flag;
+	PetscReal       gapMin, tol_gcg[2];
+	PetscMPIInt     size,rank;
 
-void GetPetscMat(Mat *A, Mat *B, PetscInt n, PetscInt m)
-{
-	assert(n==m);
-	PetscInt N = n*m;
-	PetscInt Istart, Iend, II, i, j;
-	PetscReal h = 1.0/(n+1);
-	MatCreate(PETSC_COMM_WORLD,A);
-	MatSetSizes(*A,PETSC_DECIDE,PETSC_DECIDE,N,N);
-	//MatSetFromOptions(*A);
-	MatSetUp(*A);
-	MatGetOwnershipRange(*A,&Istart,&Iend);
-	for (II=Istart;II<Iend;II++) {
-		i = II/n; j = II-i*n;
-		if (i>0)   { MatSetValue(*A,II,II-n,-1.0/h,INSERT_VALUES); }
-		if (i<m-1) { MatSetValue(*A,II,II+n,-1.0/h,INSERT_VALUES); }
-		if (j>0)   { MatSetValue(*A,II,II-1,-1.0/h,INSERT_VALUES); }
-		if (j<n-1) { MatSetValue(*A,II,II+1,-1.0/h,INSERT_VALUES); }
-		MatSetValue(*A,II,II,4.0/h,INSERT_VALUES);
-	}
-	MatAssemblyBegin(*A,MAT_FINAL_ASSEMBLY);
-	MatAssemblyEnd(*A,MAT_FINAL_ASSEMBLY);
-
-	MatCreate(PETSC_COMM_WORLD,B);
-	MatSetSizes(*B,PETSC_DECIDE,PETSC_DECIDE,N,N);
-	//MatSetFromOptions(*B);
-	MatSetUp(*B);
-	MatGetOwnershipRange(*B,&Istart,&Iend);
-	for (II=Istart;II<Iend;II++) {
-		MatSetValue(*B,II,II,1.0*h,INSERT_VALUES);
-	}
-	MatAssemblyBegin(*B,MAT_FINAL_ASSEMBLY);
-	MatAssemblyEnd(*B,MAT_FINAL_ASSEMBLY);
-	return;
-}
-
-static char help[] = "Test App of SLEPC.\n";
-int main(int argc, char *argv[]) 
-{
-
-	SlepcInitialize(&argc,&argv,(char*)0,help);
-	PetscMPIInt   rank, size;
-	MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-	MPI_Comm_size(PETSC_COMM_WORLD, &size);		
-	OPS *slepc_ops = NULL;
-	OPS_Create (&slepc_ops);
-	OPS_SLEPC_Set (slepc_ops);
+	tol_gcg[0] = gcge->tol_gcg[0];
+	tol_gcg[1] = gcge->tol_gcg[1];
+	nevInit 	= gcge->nevInit;
+	nevConv 	= gcge->nevConv;
+	nevMax  	= gcge->nevMax;
+	nevGiven 	= gcge->nevGiven;
+	max_iter_gcg= gcge->max_iter_gcg;
+	block_size  = gcge->block_size;
+	flag		= 0;
+	gapMin 		= gcge->gapMin;
+    OPS *slepc_ops;
+    slepc_ops = NULL;
+	PetscFunctionBegin;
+	ierr = MPI_Comm_size(PetscObjectComm((PetscObject)eps),&size);CHKERRMPI(ierr);
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)eps),&rank);CHKERRMPI(ierr);
+  	OPS_Create (&slepc_ops);
+  	slepc_ops->GetOptionFromCommandLine = GetOptionFromCommandLine_GCGE;
+	slepc_ops->MatAxpby               = MatAxpby_GCGE;
+	slepc_ops->MatView                = MatView_GCGE;
+	slepc_ops->MultiVecCreateByMat    = MultiVecCreateByMat_GCGE   ;
+	slepc_ops->MultiVecDestroy        = MultiVecDestroy_GCGE       ;
+	slepc_ops->MultiVecView           = MultiVecView_GCGE          ;
+	slepc_ops->MultiVecLocalInnerProd = MultiVecLocalInnerProd_GCGE;
+	slepc_ops->MultiVecSetRandomValue = MultiVecSetRandomValue_GCGE;
+	slepc_ops->MultiVecAxpby          = MultiVecAxpby_GCGE         ;
+	slepc_ops->MatDotMultiVec         = MatDotMultiVec_GCGE        ;
+	slepc_ops->MatTransDotMultiVec    = MatTransDotMultiVec_GCGE   ;
+	slepc_ops->MultiVecLinearComb     = MultiVecLinearComb_GCGE    ;
 	OPS_Setup (slepc_ops);
 	void *A, *B; OPS *ops;
 	Mat      slepc_matA, slepc_matB;
-	int flag = 0;	
-	PetscInt n = 200, m = 200;
-	GetPetscMat(&slepc_matA, &slepc_matB, n, m);
-	MatAssemblyBegin(slepc_matA, MAT_FINAL_ASSEMBLY);
-	MatAssemblyEnd(slepc_matA, MAT_FINAL_ASSEMBLY);
-	ops = slepc_ops; A = (void*)(slepc_matA); B = (void*)(slepc_matB);
-	/*
-		nevConv: the number of the required eigenpairs
-		tol_gcg[0]: corresponding to the absolute error
-		tol_gcg[1]: corresponding to the relative error
-		max_iter_gcg: the maximum iteration of GCG 
-	*/
-	int nevConv  = 30;
-	double gapMin = 1e-5;
-	int nevGiven = 0, block_size = nevConv/5, nevMax = 50;
-	int nevInit = 20;
-	nevInit = nevInit<nevMax?nevInit:nevMax;
-	int max_iter_gcg = 500; double tol_gcg[2] = {1e-1,1e-8};
-	
-	double *eval; void **evec;
+ 	ierr = EPSGetOperators(eps,&slepc_matA,&slepc_matB);CHKERRQ(ierr);
+    ops = slepc_ops; A = (void*)(slepc_matA); B = (void*)(slepc_matB);
+    double *eval; void **evec;
 	eval = malloc(nevMax*sizeof(double));
 	memset(eval,0,nevMax*sizeof(double));
 	ops->MultiVecCreateByMat(&evec,nevMax,A,ops);
@@ -576,8 +445,6 @@ int main(int argc, char *argv[])
 		tol_gcg,max_iter_gcg,flag,gcg_mv_ws,dbl_ws,int_ws,ops);
 	GCGE_Setparameters(gapMin,ops);
 	ops->EigenSolver(A,B,eval,evec,nevGiven,&nevConv,ops);
-	ops->Printf("numIter = %d, nevConv = %d\n",
-			((GCGSolver*)ops->eigen_solver_workspace)->numIter, nevConv);
 	ops->Printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
 	time_interval = ops->GetWtime() - time_start;
 	ops->Printf("Time is %.3f\n", time_interval);
@@ -588,12 +455,78 @@ int main(int argc, char *argv[])
 		ops->Printf("%d: %6.14e\n",idx+1,eval[idx]);
 	}
 	ops->MultiVecDestroy(&(evec),nevMax,ops);
-	free(eval);
-	MatDestroy(&slepc_matA);
-	MatDestroy(&slepc_matB);	
+    //free(eval);
+	//MatDestroy(&slepc_matA);
+	//MatDestroy(&slepc_matB);	
 	OPS_Destroy (&slepc_ops);
-	SlepcFinalize();	
-	return 0;
+    PetscFunctionReturn(0);
 }
+
+PetscErrorCode EPSDestroy_GCGE(EPS eps)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscFree(eps->data);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+    
+PetscErrorCode EPSSetFromOptions_GCGE(PetscOptionItems *PetscOptionsObject,EPS eps)
+{
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+
+  ierr = PetscOptionsTail();CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode EPSView_GCGE(EPS eps,PetscViewer viewer)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode EPSReset_GCGE(EPS eps)
+{
+  PetscFunctionBegin;
+  PetscFunctionReturn(0);
+}
+
+SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
+{
+    EPS_GCGE       *ctx;
+    PetscErrorCode ierr;
+	printf("create begin \n");
+
+    PetscFunctionBegin;
+    ierr = PetscNewLog(eps,&ctx);CHKERRQ(ierr);
+    eps->data = (void*)ctx;
+    ctx->nevConv = 30;
+    ctx->block_size = (ctx->nevConv)>10?((PetscInt)((ctx->nevConv)/5)):((PetscInt)((ctx->nevConv)/2));
+    ctx->nevInit = 3*(ctx->block_size);
+    ctx->nevMax = (ctx->nevInit)+(ctx->nevConv);
+    ctx->gapMin = 1e-5;
+    ctx->tol_gcg[0] = 1e-1;
+    ctx->tol_gcg[1] = 1e-8;
+    ctx->max_iter_gcg = 500;
+
+
+    eps->categ = EPS_CATEGORY_OTHER;
+
+    eps->ops->solve          = EPSSolve_GCGE;
+    eps->ops->setup          = EPSSetUp_GCGE;
+    //eps->ops->setupsort      = EPSSetUpSort_Basic;
+    eps->ops->setfromoptions = EPSSetFromOptions_GCGE;
+    eps->ops->destroy        = EPSDestroy_GCGE;
+    eps->ops->reset          = EPSReset_GCGE;
+    eps->ops->view           = EPSView_GCGE;
+    //eps->ops->backtransform  = EPSBackTransform_Default;
+    //eps->ops->setdefaultst   = EPSSetDefaultST_NoFactor;
+	printf("create end \n");
+    PetscFunctionReturn(0);
+
+}
+
 
 

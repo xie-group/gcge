@@ -1902,7 +1902,7 @@ void GCGE_Setparameters(double gapMin, struct OPS_ *ops)
 			compW_orth_method    , compW_orth_block_size, 
 			compW_orth_max_reorth, compW_orth_zero_tol  ,
 			compW_bpcg_max_iter  , compW_bpcg_rate      , 
-			compW_bpcg_tol       , compW_bpcg_tol_type  , 1, // without shift
+			compW_bpcg_tol       , compW_bpcg_tol_type  , 0, // without shift
 			compRR_min_num       , compRR_min_gap       ,
 			compRR_tol           ,  
 			ops);		
