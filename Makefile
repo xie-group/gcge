@@ -70,7 +70,8 @@ clean: clean-custom
 	-@$(MAKE) -C lib clean
 
 $(BIN): $(OBJ)
-	$(MAKE) -C lib
+	@$(MAKE) -C lib
+	@$(MAKE) -C lib install_name
 	$(CC) $(LINKOBJ) -o $(BIN) $(LIBS)
 ifeq ($(UNAME), Darwin)
 	@install_name_tool -change libgcge.$(VERSION).dylib ./lib/libgcge.$(VERSION).dylib $(BIN)

@@ -48,6 +48,11 @@ ifneq ($(SONAMELIB), $(SOLIB))
 	@ln -sf $(SONAMELIB) $(SOLIB)
 endif
 
+install_name:
+ifeq ($(UNAME), Darwin)
+	@install_name_tool -id $(SLEPC_DIR)/../lib/$(SONAMELIB) $(SLEPC_DIR)/../lib/$(SONAMELIB)
+endif
+
 test_eig_sol_gcg.o: test_eig_sol_gcg.c
 	$(CC) -c test_eig_sol_gcg.c -o test_eig_sol_gcg.o $(CFLAGS)
 
