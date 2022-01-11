@@ -43,8 +43,8 @@ CC       = mpicc  -D__DEBUG__
 
 SLEPCPETSCLIB = -lslepc -lpetsc
 GCGELIB := -L./lib -Wl,-rpath,./lib -lgcge
-OBJ      = slepcgcge.o
-LINKOBJ     = slepcgcge.o
+OBJ      = gcge.o
+LINKOBJ     = gcge.o
 LIBS     = $(GCGELIB) $(LIBSLEPC) $(LIBPETSC) $(SLEPCPETSCLIB)
 
 INCS     = -I./src -I./app
@@ -76,5 +76,5 @@ ifeq ($(UNAME), Darwin)
 	@install_name_tool -change libgcge.$(VERSION).dylib ./lib/libgcge.$(VERSION).dylib $(BIN)
 endif
 
-slepcgcge.o: slepcgcge.c
-	$(CC) -c slepcgcge.c -o slepcgcge.o $(CFLAGS) $(SLEPCFLAGS) $(SLEPCINC) 
+gcge.o: gcge.c
+	$(CC) -c $^ -o $@ $(CFLAGS) $(SLEPCFLAGS) $(SLEPCINC) 

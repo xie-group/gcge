@@ -1,2 +1,2 @@
 #!/bin/sh
-mpicc slepcgcge.c  -o slepcgcge -lgcge -I./src -I./app
+mpicc gcge.c  -o gcge -lgcge -I./src -I./app
