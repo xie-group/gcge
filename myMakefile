@@ -1,6 +1,0 @@
-include ./lib/Makefile
-
-install_name:
-ifeq ($(UNAME), Darwin)
-  @install_name_tool -id /Users/zhaog6/zg/Labs/GCGE/test/SLEPc/lib/$(SONAMELIB) /Users/zhaog6/zg/Labs/GCGE/test/SLEPc/lib/$(SONAMELIB)
-endif
