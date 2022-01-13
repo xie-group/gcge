@@ -376,7 +376,6 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
     EPSCheckUnsupported(eps,EPS_FEATURE_BALANCE | EPS_FEATURE_ARBITRARY | EPS_FEATURE_REGION | EPS_FEATURE_STOPPING);
     EPSCheckIgnored(eps,EPS_FEATURE_EXTRACTION | EPS_FEATURE_CONVERGENCE);
 
-    eps->ncv = gcge->nevMax;
     if (!eps->V) { ierr = EPSGetBV(eps,&eps->V);CHKERRQ(ierr); }
     ierr = EPSAllocateSolution(eps,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
@@ -519,9 +518,12 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     PetscErrorCode ierr;
     PetscFunctionBegin;
     ierr = PetscNewLog(eps,&ctx);CHKERRQ(ierr);
+    eps->max_it = 1000;
     eps->data = (void*)ctx;
     eps->nev = 2;//Default
     ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
+    eps->ncv = 2*eps->nev;
+    eps->mpd = eps->ncv;
     ctx->nevConv = eps->nev;
     ctx->block_size = (ctx->nevConv)>20?((PetscInt)((ctx->nevConv)/3)):((PetscInt)((ctx->nevConv)/2));
     ctx->nevInit = 3*(ctx->block_size);
