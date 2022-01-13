@@ -363,20 +363,20 @@ static int GetOptionFromCommandLine_GCGE (
 }
 
 
-
 PetscErrorCode EPSSetUp_GCGE(EPS eps)
 {
     PetscErrorCode ierr;
-    PetscMPIInt    numProcs,procID;
-	EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
+    PetscBool      isshift;
+    EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
     PetscFunctionBegin;
-    ierr = MPI_Comm_size(PetscObjectComm((PetscObject)eps),&numProcs);CHKERRMPI(ierr);
-    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)eps),&procID);CHKERRMPI(ierr);
-	EPSCheckUnsupported(eps,EPS_FEATURE_ARBITRARY | EPS_FEATURE_REGION | EPS_FEATURE_STOPPING);
-    EPSCheckIgnored(eps,EPS_FEATURE_BALANCE | EPS_FEATURE_CONVERGENCE);
+    EPSCheckHermitianDefinite(eps);
+    ierr = PetscObjectTypeCompare((PetscObject)eps->st,STSHIFT,&isshift);CHKERRQ(ierr);
+    if (!isshift) SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_SUP,"This solver does not support spectral transformations");
+    if (!eps->which) eps->which = EPS_SMALLEST_REAL;
+    EPSCheckUnsupported(eps,EPS_FEATURE_BALANCE | EPS_FEATURE_ARBITRARY | EPS_FEATURE_REGION | EPS_FEATURE_STOPPING);
+    EPSCheckIgnored(eps,EPS_FEATURE_EXTRACTION | EPS_FEATURE_CONVERGENCE);
 
-  	if (!eps->which) eps->which = EPS_SMALLEST_REAL;
-	eps->ncv = gcge->nevMax;
+    eps->ncv = gcge->nevMax;
     if (!eps->V) { ierr = EPSGetBV(eps,&eps->V);CHKERRQ(ierr); }
     ierr = EPSAllocateSolution(eps,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
@@ -386,154 +386,150 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
 PetscErrorCode EPSSolve_GCGE(EPS eps)
 {   
     PetscErrorCode 	ierr;
-  	EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
-	PetscInt 		nevMax, nevInit, nevConv, block_size, nevGiven, max_iter_gcg, flag, M ,N;
-	PetscReal       gapMin, tol_gcg[2];
-	PetscMPIInt     size,rank;
-	PetscScalar	    *a, *b;
-	
-	tol_gcg[0] = gcge->tol_gcg[0];
-	tol_gcg[1] = gcge->tol_gcg[1];
-	nevInit 	= gcge->nevInit;
-	nevConv 	= gcge->nevConv;
-	nevMax  	= gcge->nevMax;
-	nevGiven 	= gcge->nevGiven;
-	max_iter_gcg= gcge->max_iter_gcg;
-	block_size  = gcge->block_size;
-	flag		= 0;
-	gapMin 		= gcge->gapMin;
+    EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
+    PetscInt 		nevMax, nevInit, nevConv, block_size, nevGiven, max_iter_gcg, flag, M ,N;
+    PetscReal       gapMin, tol_gcg[2];
+    PetscMPIInt     size,rank;
+    PetscScalar	    *a, *b;
+
+    tol_gcg[0] = gcge->tol_gcg[0];
+    tol_gcg[1] = gcge->tol_gcg[1];
+    nevInit 	= gcge->nevInit;
+    nevConv 	= gcge->nevConv;
+    nevMax  	= gcge->nevMax;
+    nevGiven 	= gcge->nevGiven;
+    max_iter_gcg= gcge->max_iter_gcg;
+    block_size  = gcge->block_size;
+    flag		= 0;
+    gapMin 		= gcge->gapMin;
     OPS *slepc_ops;
     slepc_ops = NULL;
-	PetscFunctionBegin;
-	ierr = MPI_Comm_size(PetscObjectComm((PetscObject)eps),&size);CHKERRMPI(ierr);
+    PetscFunctionBegin;
+    ierr = MPI_Comm_size(PetscObjectComm((PetscObject)eps),&size);CHKERRMPI(ierr);
     ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)eps),&rank);CHKERRMPI(ierr);
-  	OPS_Create (&slepc_ops);
-  	slepc_ops->GetOptionFromCommandLine = GetOptionFromCommandLine_GCGE;
-	slepc_ops->MatAxpby               = MatAxpby_GCGE;
-	slepc_ops->MatView                = MatView_GCGE;
-	slepc_ops->MultiVecCreateByMat    = MultiVecCreateByMat_GCGE   ;
-	slepc_ops->MultiVecDestroy        = MultiVecDestroy_GCGE       ;
-	slepc_ops->MultiVecView           = MultiVecView_GCGE          ;
-	slepc_ops->MultiVecLocalInnerProd = MultiVecLocalInnerProd_GCGE;
-	slepc_ops->MultiVecSetRandomValue = MultiVecSetRandomValue_GCGE;
-	slepc_ops->MultiVecAxpby          = MultiVecAxpby_GCGE         ;
-	slepc_ops->MatDotMultiVec         = MatDotMultiVec_GCGE        ;
-	slepc_ops->MatTransDotMultiVec    = MatTransDotMultiVec_GCGE   ;
-	slepc_ops->MultiVecLinearComb     = MultiVecLinearComb_GCGE    ;
-	OPS_Setup (slepc_ops);
-	void *A, *B; OPS *ops;
-	Mat      slepc_matA, slepc_matB;
- 	ierr = EPSGetOperators(eps,&slepc_matA,&slepc_matB);CHKERRMPI(ierr);
-	ierr = MatGetSize(slepc_matA,&M,&N); CHKERRMPI(ierr);
+    OPS_Create (&slepc_ops);
+    slepc_ops->GetOptionFromCommandLine = GetOptionFromCommandLine_GCGE;
+    slepc_ops->MatAxpby               = MatAxpby_GCGE;
+    slepc_ops->MatView                = MatView_GCGE;
+    slepc_ops->MultiVecCreateByMat    = MultiVecCreateByMat_GCGE   ;
+    slepc_ops->MultiVecDestroy        = MultiVecDestroy_GCGE       ;
+    slepc_ops->MultiVecView           = MultiVecView_GCGE          ;
+    slepc_ops->MultiVecLocalInnerProd = MultiVecLocalInnerProd_GCGE;
+    slepc_ops->MultiVecSetRandomValue = MultiVecSetRandomValue_GCGE;
+    slepc_ops->MultiVecAxpby          = MultiVecAxpby_GCGE         ;
+    slepc_ops->MatDotMultiVec         = MatDotMultiVec_GCGE        ;
+    slepc_ops->MatTransDotMultiVec    = MatTransDotMultiVec_GCGE   ;
+    slepc_ops->MultiVecLinearComb     = MultiVecLinearComb_GCGE    ;
+    OPS_Setup (slepc_ops);
+    void *A, *B; OPS *ops;
+    Mat      slepc_matA, slepc_matB;
+    ierr = STGetMatrix(eps->st,0,&slepc_matA);CHKERRQ(ierr);
+    ierr = STGetMatrix(eps->st,1,&slepc_matB);CHKERRQ(ierr);
+    //ierr = EPSGetOperators(eps,&slepc_matA,&slepc_matB);CHKERRQ(ierr);
+    ierr = MatGetSize(slepc_matA,&M,&N);
     ops = slepc_ops; A = (void*)(slepc_matA); B = (void*)(slepc_matB);
     double *eval; 
-	void **evec;
-	eval = malloc(nevMax*sizeof(double));
-	memset(eval,0,nevMax*sizeof(double));
-	ops->MultiVecCreateByMat(&evec,nevMax,A,ops);
-	ops->MultiVecSetRandomValue(evec,0,nevMax,ops);
-	void **gcg_mv_ws[4]; double *dbl_ws = NULL; int *int_ws = NULL;
-	GCGE_Create(A, nevMax, block_size, nevInit, gcg_mv_ws, dbl_ws, int_ws, ops);
-	int sizeV = nevInit + 2*block_size;
-	int length_dbl_ws = 2*sizeV*sizeV+10*sizeV
-		+(nevMax+2*block_size)+(nevMax)*block_size;
-	int length_int_ws = 6*sizeV+2*(block_size+3);
-	dbl_ws = malloc(length_dbl_ws*sizeof(double));
-	memset(dbl_ws,0,length_dbl_ws*sizeof(double));
-	int_ws = malloc(length_int_ws*sizeof(int));
-	memset(int_ws,0,length_int_ws*sizeof(int));
-	srand(0);
-	double time_start, time_interval;
-	time_start = ops->GetWtime();
-	ops->Printf("===============================================\n");
-	ops->Printf("GCG Eigen Solver\n");
-	int i;
-	ierr = BVGetArray(eps->V,&a);CHKERRQ(ierr);
-	EigenSolverSetup_GCG(gapMin,nevInit,nevMax,block_size,
-		tol_gcg,max_iter_gcg,flag,gcg_mv_ws,dbl_ws,int_ws,ops);
-	GCGE_Setparameters(gapMin,ops);
-	ops->EigenSolver(A,B,eval,evec,nevGiven,&nevConv,ops);
-	ierr = BVGetArray((BV)evec,&b);CHKERRQ(ierr);
-	for (i=0;i<nevConv*N;++i) {
-		a[i] = b[i];
-	}
-	ierr = BVRestoreArray(eps->V,&a);CHKERRQ(ierr);
-	ierr = BVRestoreArray((BV)evec,&b);CHKERRQ(ierr);
-	ops->Printf("numIter = %d, nevConv = %d\n",
-			((GCGSolver*)ops->eigen_solver_workspace)->numIter, nevConv);
-	//eps->nev = nevConv;
-	eps->nconv = ((GCGSolver*)ops->eigen_solver_workspace)->nevConv;
-	eps->reason = EPS_CONVERGED_TOL;
-	for (i=0;i<eps->nconv;i++) eps->eigr[i] = eval[i];
-	eps->its = ((GCGSolver*)ops->eigen_solver_workspace)->numIter;
-	ops->Printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
-	time_interval = ops->GetWtime() - time_start;
-	ops->Printf("Time is %.3f\n", time_interval);
-	GCGE_Destroymvws(gcg_mv_ws, dbl_ws, int_ws, nevMax, block_size,ops);
-	ops->Printf("eigenvalues\n");
-	int idx;
-	for (idx = 0; idx < nevConv; ++idx) {
-		ops->Printf("%d: %6.14e\n",idx+1,eval[idx]);
-	}
-	//ops->MultiVecDestroy(&(evec),nevMax,ops);
-	//ops->MultiVecView(evec,0,nevConv,ops);
-    //free(eval);
-	//MatDestroy(&slepc_matA);
-	//MatDestroy(&slepc_matB);	
-	OPS_Destroy (&slepc_ops);
+    void **evec;
+    eval = malloc(nevMax*sizeof(double));
+    memset(eval,0,nevMax*sizeof(double));
+    ops->MultiVecCreateByMat(&evec,nevMax,A,ops);
+    ops->MultiVecSetRandomValue(evec,0,nevMax,ops);
+    void **gcg_mv_ws[4]; double *dbl_ws = NULL; int *int_ws = NULL;
+    GCGE_Create(A, nevMax, block_size, nevInit, gcg_mv_ws, dbl_ws, int_ws, ops);
+    int sizeV = nevInit + 2*block_size;
+    int length_dbl_ws = 2*sizeV*sizeV+10*sizeV
+        +(nevMax+2*block_size)+(nevMax)*block_size;
+    int length_int_ws = 6*sizeV+2*(block_size+3);
+    dbl_ws = malloc(length_dbl_ws*sizeof(double));
+    memset(dbl_ws,0,length_dbl_ws*sizeof(double));
+    int_ws = malloc(length_int_ws*sizeof(int));
+    memset(int_ws,0,length_int_ws*sizeof(int));
+    srand(0);
+    double time_start, time_interval;
+    time_start = ops->GetWtime();
+    ops->Printf("===============================================\n");
+    ops->Printf("GCG Eigen Solver\n");
+    int i;
+    ierr = BVGetArray(eps->V,&a);CHKERRQ(ierr);
+    EigenSolverSetup_GCG(gapMin,nevInit,nevMax,block_size,
+            tol_gcg,max_iter_gcg,flag,gcg_mv_ws,dbl_ws,int_ws,ops);
+    GCGE_Setparameters(gapMin,ops);
+    ops->EigenSolver(A,B,eval,evec,nevGiven,&nevConv,ops);
+    ierr = BVGetArray((BV)evec,&b);CHKERRQ(ierr);
+    PetscInt pnev = (PetscInt)nevConv/size+1;
+    for (i=0;i<pnev*N;++i) {
+        a[i] = b[i];
+    }
+    ierr = BVRestoreArray(eps->V,&a);CHKERRQ(ierr);
+    ierr = BVRestoreArray((BV)evec,&b);CHKERRQ(ierr);
+    ops->Printf("numIter = %d, nevConv = %d\n",
+            ((GCGSolver*)ops->eigen_solver_workspace)->numIter, nevConv);
+    //eps->nev = nevConv;
+    eps->nconv = ((GCGSolver*)ops->eigen_solver_workspace)->nevConv;
+    eps->reason = EPS_CONVERGED_TOL;
+    for (i=0;i<eps->nconv;i++) eps->eigr[i] = eval[i];
+    eps->its = ((GCGSolver*)ops->eigen_solver_workspace)->numIter;
+    ops->Printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
+    time_interval = ops->GetWtime() - time_start;
+    ops->Printf("Time is %.3f\n", time_interval);
+    GCGE_Destroymvws(gcg_mv_ws, dbl_ws, int_ws, nevMax, block_size,ops);
+    ops->Printf("eigenvalues\n");
+    int idx;
+    for (idx = 0; idx < nevConv; ++idx) {
+        ops->Printf("%d: %6.14e\n",idx+1,eval[idx]);
+    }
+    OPS_Destroy (&slepc_ops);
     PetscFunctionReturn(0);
 }
 
 PetscErrorCode EPSDestroy_GCGE(EPS eps)
 {
-  PetscErrorCode ierr;
+    PetscErrorCode ierr;
 
-  PetscFunctionBegin;
-  ierr = PetscFree(eps->data);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+    PetscFunctionBegin;
+    ierr = PetscFree(eps->data);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
 }
-    
+
 PetscErrorCode EPSSetFromOptions_GCGE(PetscOptionItems *PetscOptionsObject,EPS eps)
 {
-  PetscErrorCode  ierr;
+    PetscErrorCode  ierr;
 
-  PetscFunctionBegin;
+    PetscFunctionBegin;
 
-  ierr = PetscOptionsTail();CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+    ierr = PetscOptionsTail();CHKERRQ(ierr);
+    PetscFunctionReturn(0);
 }
 
 PetscErrorCode EPSView_GCGE(EPS eps,PetscViewer viewer)
 {
-  PetscFunctionBegin;
-  PetscFunctionReturn(0);
+    PetscFunctionBegin;
+    PetscFunctionReturn(0);
 }
 
 PetscErrorCode EPSReset_GCGE(EPS eps)
 {
-  PetscFunctionBegin;
-  PetscFunctionReturn(0);
+    PetscFunctionBegin;
+    PetscFunctionReturn(0);
 }
 
 SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
 {
     EPS_GCGE       *ctx;
     PetscErrorCode ierr;
-
     PetscFunctionBegin;
     ierr = PetscNewLog(eps,&ctx);CHKERRQ(ierr);
     eps->data = (void*)ctx;
-	eps->nev = 30;//Default
-	ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
+    eps->nev = 2;//Default
+    ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
     ctx->nevConv = eps->nev;
-    ctx->block_size = (ctx->nevConv)>10?((PetscInt)((ctx->nevConv)/5)):((PetscInt)((ctx->nevConv)/2));
+    ctx->block_size = (ctx->nevConv)>20?((PetscInt)((ctx->nevConv)/3)):((PetscInt)((ctx->nevConv)/2));
     ctx->nevInit = 3*(ctx->block_size);
     ctx->nevMax = (ctx->nevInit)+(ctx->nevConv);
     ctx->gapMin = 1e-5;
     ctx->tol_gcg[0] = 1e-1;
     ctx->tol_gcg[1] = 1e-8;
     ctx->max_iter_gcg = 500;
-
 
     eps->categ = EPS_CATEGORY_OTHER;
 
@@ -545,7 +541,7 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     eps->ops->reset          = EPSReset_GCGE;
     eps->ops->view           = EPSView_GCGE;
     eps->ops->backtransform  = EPSBackTransform_Default;
-    //eps->ops->setdefaultst   = EPSSetDefaultST_NoFactor;
+    eps->ops->setdefaultst   = EPSSetDefaultST_NoFactor;
     PetscFunctionReturn(0);
 
 }
