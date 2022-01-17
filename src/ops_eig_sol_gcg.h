@@ -82,6 +82,8 @@ void EigenSolverSetParameters_GCG(
 void EigenSolverSetParametersFromCommandLine_GCG(
 	int argc, char* argv[], struct OPS_ *ops);
 
+void Printconv_GCG(struct OPS_ *ops);
+
 void GCGE_Create(void *A, int nevMax, int block_size, int nevInit, void ***gcg_mv_ws, double *dbl_ws, int *int_ws, 
 	struct OPS_ *ops);
 

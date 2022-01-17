@@ -21,8 +21,8 @@
 #include    "ops_eig_sol_gcg.h"
 
 #define     DEBUG 0
-#define     TIME_GCG 1
-#define     PRINT_FIRST_UNCONV 1
+#define     TIME_GCG 0
+#define     PRINT_FIRST_UNCONV 0
 
 typedef struct TimeGCG_ {
 	double initX_time;
@@ -1800,12 +1800,13 @@ void EigenSolverSetParametersFromCommandLine_GCG(
 		&gcg_solver->compRR_min_gap,argc,argv, ops);
 	ops->GetOptionFromCommandLine("-gcge_compRR_tol    ",'f',
 		&gcg_solver->compRR_tol    ,argc,argv, ops);
-
-	int print_usage = 1;
-	ops->GetOptionFromCommandLine("-gcge_print_usage",'i',&print_usage,argc,argv, ops);
-	if (print_usage) {
+    return;
+}
+void Printconv_GCG(struct OPS_ *ops)
+{
+	struct GCGSolver_ *gcg_solver = (GCGSolver*)ops->eigen_solver_workspace;
+	if (1) {
        ops->Printf("\n");
-       ops->Printf("Usage: %s [<options>]\n", argv[0]);
        ops->Printf("---------------------------------------------------------------------------------------------------\n");
        ops->Printf(" -gcge_min_gap      <f>: minimum of gap of eigenvalues relatively    %.2e (default: 1e-2)\n",gcg_solver->gapMin);
        ops->Printf("---------------------------------------------------------------------------------------------------\n");
@@ -1902,7 +1903,7 @@ void GCGE_Setparameters(double gapMin, struct OPS_ *ops)
 			compW_orth_method    , compW_orth_block_size, 
 			compW_orth_max_reorth, compW_orth_zero_tol  ,
 			compW_bpcg_max_iter  , compW_bpcg_rate      , 
-			compW_bpcg_tol       , compW_bpcg_tol_type  , 0, // without shift
+			compW_bpcg_tol       , compW_bpcg_tol_type  , 1, // without shift
 			compRR_min_num       , compRR_min_gap       ,
 			compRR_tol           ,  
 			ops);		
