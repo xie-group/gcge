@@ -21,7 +21,7 @@
 #include    "ops_eig_sol_gcg.h"
 
 #define     DEBUG 0
-#define     TIME_GCG 0
+#define     TIME_GCG 1
 #define     PRINT_FIRST_UNCONV 0
 
 typedef struct TimeGCG_ {
@@ -231,21 +231,21 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
 		if (fabs(ss_eval[startN+idx]) > tol[1]) {
 			if (inner_prod[idx] > tol[0] || 
 					inner_prod[idx] > fabs(ss_eval[startN+idx])*tol[1]) {
-#if PRINT_FIRST_UNCONV
+if (gcg_solver->print) {
 				ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
 						startN+idx,ss_eval[startN+idx],
 						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
-#endif
+}
 				break;
 			}
 		}
 		else {
 			if (inner_prod[idx] > tol[0]) {
-#if PRINT_FIRST_UNCONV
+if (gcg_solver->print) {
 				ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
 						startN+idx,ss_eval[startN+idx],
 						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
-#endif 
+} 
 				break;
 			}
 		}
@@ -620,6 +620,7 @@ static void ComputeW(void **V, void *A, void *B,
 	/* 20210628 recover A */
 	if (sigma!=0.0 && B!=NULL && ops_gcg->MatAxpby!=NULL) {
 		/* A = -sigma B + A */
+		printf("mat=======\n");
 		ops_gcg->MatAxpby(-sigma,B,1.0,A,ops_gcg);
 	}
 #endif
@@ -1374,10 +1375,10 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 	nev  = nevInit<nevMax?2*block_size:nev0;
 	nev  = nev<nev0?nev:nev0;
 	numIter = 0; /* numIter 取负值时, 小于等于零的迭代不进行判断收敛性 */
-#if PRINT_FIRST_UNCONV
+if (gcg_solver->print) {
 	ops_gcg->Printf("------------------------------\n");
 	ops_gcg->Printf("numIter\tnevConv\n",numIter, *nevConv);		
-#endif
+}
 	do {
 #if DEBUG
 		ops_gcg->Printf("numIter = %d, sizeC = %d, sizeN = %d, sizeX = %d, sizeP = %d, sizeW = %d, sizeV = %d\n",
@@ -1559,7 +1560,7 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 void EigenSolverSetup_GCG(
 	double gapMin , 
 	int    nevInit , int    nevMax , int block_size, 
-	double tol[2]  , int    numIterMax, 
+	double tol[2]  , int    numIterMax, int print,
 	int user_defined_multi_linear_solver,
 	void **mv_ws[4], double *dbl_ws, int *int_ws,	
 	struct OPS_ *ops)
@@ -1568,7 +1569,8 @@ void EigenSolverSetup_GCG(
 		.nevMax     = 3 , .gapMin = 0.01, 
 		.nevInit    = 3 , .nevGiven   = 0,
 		.block_size = 1 , .numIterMax = 4, .user_defined_multi_linear_solver = 0,
-		.mv_ws      = {}, .dbl_ws  = NULL, .int_ws = NULL,		
+		.mv_ws      = {}, .dbl_ws  = NULL, .int_ws = NULL,	
+		.print      = 0,	
 		/* 算法内部参数 */		
 		.initX_orth_method     = "mgs",
 		.initX_orth_block_size = -1   ,
@@ -1602,6 +1604,7 @@ void EigenSolverSetup_GCG(
 	gcg_solver_static.tol[0]     = tol[0];
 	gcg_solver_static.tol[1]     = tol[1];
 	gcg_solver_static.numIterMax = numIterMax;
+	gcg_solver_static.print      = print;
 	gcg_solver_static.mv_ws[0]   = mv_ws[0];
 	gcg_solver_static.mv_ws[1]   = mv_ws[1];
 	gcg_solver_static.mv_ws[2]   = mv_ws[2];
@@ -1800,11 +1803,6 @@ void EigenSolverSetParametersFromCommandLine_GCG(
 		&gcg_solver->compRR_min_gap,argc,argv, ops);
 	ops->GetOptionFromCommandLine("-gcge_compRR_tol    ",'f',
 		&gcg_solver->compRR_tol    ,argc,argv, ops);
-    return;
-}
-void Printconv_GCG(struct OPS_ *ops)
-{
-	struct GCGSolver_ *gcg_solver = (GCGSolver*)ops->eigen_solver_workspace;
 	if (1) {
        ops->Printf("\n");
        ops->Printf("---------------------------------------------------------------------------------------------------\n");
@@ -1854,7 +1852,7 @@ void Printconv_GCG(struct OPS_ *ops)
        ops->Printf(" -gcge_print_usage      <i>: print usage of gcg eigen solver         %d (default: 1[0])\n",1);
        ops->Printf("--------------------------------------------------------------------------------------------------\n");
        //ops->Printf(" -bpcg_print_res        <i>: print residual per five bpcg iteration  (default: 1[0])\n");
-    }
+	}
 	return;	
 }
 
@@ -1871,7 +1869,7 @@ void GCGE_Create(void *A, int nevMax, int block_size, int nevInit, void ***gcg_m
 	ops->MultiVecSetRandomValue(gcg_mv_ws[3],0,block_size,ops);
 	return;
 }
-void GCGE_Setparameters(double gapMin, struct OPS_ *ops) 
+void GCGE_Setparameters(double gapMin, int shift, struct OPS_ *ops) 
 {
 	int    check_conv_max_num    = 50   ;
 		
@@ -1903,7 +1901,7 @@ void GCGE_Setparameters(double gapMin, struct OPS_ *ops)
 			compW_orth_method    , compW_orth_block_size, 
 			compW_orth_max_reorth, compW_orth_zero_tol  ,
 			compW_bpcg_max_iter  , compW_bpcg_rate      , 
-			compW_bpcg_tol       , compW_bpcg_tol_type  , 1, // without shift
+			compW_bpcg_tol       , compW_bpcg_tol_type  , shift, // without shift
 			compRR_min_num       , compRR_min_gap       ,
 			compRR_tol           ,  
 			ops);		
@@ -1912,6 +1910,10 @@ void GCGE_Setparameters(double gapMin, struct OPS_ *ops)
 /* 命令行获取 GCG 的算法参数 勿用 有 BUG, 
 	 * 不应该改变 nevMax nevInit block_size, 这些与工作空间有关 */
 }
+int gcgeprint(int flag)
+{				
+	return flag;
+} 
 void GCGE_Destroymvws(void ***gcg_mv_ws, double *dbl_ws, int *int_ws, int nevMax, int block_size, struct OPS_ *ops) 
 {
 	ops->MultiVecDestroy(&gcg_mv_ws[0],nevMax+2*block_size,ops);

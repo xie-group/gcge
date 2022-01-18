@@ -15,6 +15,8 @@ typedef struct {
   PetscInt             max_iter_gcg;   
   PetscReal            tol_gcg[2];
   PetscReal            gapMin;
+  PetscInt			   autoshift;
+  PetscInt             print;
 } EPS_GCGE;
 
 /* multi-vec */
@@ -367,7 +369,7 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
 {
     PetscErrorCode ierr;
     PetscBool      isshift;
-    EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
+   // EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
     PetscFunctionBegin;
     EPSCheckHermitianDefinite(eps);
     ierr = PetscObjectTypeCompare((PetscObject)eps->st,STSHIFT,&isshift);CHKERRQ(ierr);
@@ -386,10 +388,11 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
 {   
     PetscErrorCode 	ierr;
     EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
-    PetscInt 		nevMax, nevInit, nevConv, block_size, nevGiven, max_iter_gcg, flag, M ,N;
+    PetscInt 		nevMax, nevInit, nevConv, block_size, nevGiven, max_iter_gcg, flag, M ,N, print;
     PetscReal       gapMin, tol_gcg[2];
     PetscMPIInt     size,rank;
     PetscScalar	    *a, *b;
+	PetscInt        shift;
 
     tol_gcg[0] = gcge->tol_gcg[0];
     tol_gcg[1] = gcge->tol_gcg[1];
@@ -401,6 +404,8 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     block_size  = gcge->block_size;
     flag		= 0;
     gapMin 		= gcge->gapMin;
+	shift       = gcge->autoshift;
+	print       = gcge->print;
     OPS *slepc_ops;
     slepc_ops = NULL;
     PetscFunctionBegin;
@@ -408,7 +413,8 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)eps),&rank);CHKERRMPI(ierr);
     OPS_Create (&slepc_ops);
     slepc_ops->GetOptionFromCommandLine = GetOptionFromCommandLine_GCGE;
-    slepc_ops->MatAxpby               = MatAxpby_GCGE;
+    //slepc_ops->MatAxpby               = NULL;
+	//slepc_ops->MatAxpby               = MatAxpby_GCGE;
     slepc_ops->MatView                = MatView_GCGE;
     slepc_ops->MultiVecCreateByMat    = MultiVecCreateByMat_GCGE   ;
     slepc_ops->MultiVecDestroy        = MultiVecDestroy_GCGE       ;
@@ -422,9 +428,9 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     OPS_Setup (slepc_ops);
     void *A, *B; OPS *ops;
     Mat      slepc_matA, slepc_matB;
-    ierr = STGetMatrix(eps->st,0,&slepc_matA);CHKERRQ(ierr);
-    ierr = STGetMatrix(eps->st,1,&slepc_matB);CHKERRQ(ierr);
-    //ierr = EPSGetOperators(eps,&slepc_matA,&slepc_matB);CHKERRQ(ierr);
+    //ierr = STGetMatrix(eps->st,0,&slepc_matA);CHKERRQ(ierr);
+    //ierr = STGetMatrix(eps->st,1,&slepc_matB);CHKERRQ(ierr);
+    ierr = EPSGetOperators(eps,&slepc_matA,&slepc_matB);CHKERRQ(ierr);
     ierr = MatGetSize(slepc_matA,&M,&N);
     ops = slepc_ops; A = (void*)(slepc_matA); B = (void*)(slepc_matB);
     double *eval; 
@@ -451,8 +457,8 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     int i;
     ierr = BVGetArray(eps->V,&a);CHKERRQ(ierr);
     EigenSolverSetup_GCG(gapMin,nevInit,nevMax,block_size,
-            tol_gcg,max_iter_gcg,flag,gcg_mv_ws,dbl_ws,int_ws,ops);
-    GCGE_Setparameters(gapMin,ops);
+            tol_gcg,max_iter_gcg,print,flag,gcg_mv_ws,dbl_ws,int_ws,ops);
+    GCGE_Setparameters(gapMin,shift,ops);
     ops->EigenSolver(A,B,eval,evec,nevGiven,&nevConv,ops);
     ierr = BVGetArray((BV)evec,&b);CHKERRQ(ierr);
     PetscInt pnev = (PetscInt)nevConv/size+1;
@@ -487,19 +493,109 @@ PetscErrorCode EPSDestroy_GCGE(EPS eps)
 
     PetscFunctionBegin;
     ierr = PetscFree(eps->data);CHKERRQ(ierr);
-    PetscFunctionReturn(0);
+	ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetShift_C",NULL);CHKERRQ(ierr);
+	ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetShift_C",NULL);CHKERRQ(ierr);
+	ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetPrint_C",NULL);CHKERRQ(ierr);
+	ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetPrint_C",NULL);CHKERRQ(ierr);    
+	PetscFunctionReturn(0);
 }
 
 PetscErrorCode EPSSetFromOptions_GCGE(PetscOptionItems *PetscOptionsObject,EPS eps)
 {
     PetscErrorCode  ierr;
-
+	EPS_GCGE        *ctx = (EPS_GCGE*)eps->data;
+	PetscInt        shift, print;
+	PetscBool       flg;
     PetscFunctionBegin;
-
+	ierr = PetscOptionsHead(PetscOptionsObject,"EPS GCGE Options");CHKERRQ(ierr);
+	ierr = PetscOptionsInt("-eps_gcge_autoshift","autoshift for bcg","EPSGCGESetShift",ctx->autoshift,&shift,&flg);CHKERRQ(ierr);
+    if (flg) { ierr = EPSGCGESetShift(eps,shift);CHKERRQ(ierr); }
+	ierr = PetscOptionsInt("-eps_gcge_print_cprocess","print convergence process of gcge","EPSGCGESetPrint",ctx->print,&print,&flg);CHKERRQ(ierr);
+    if (flg) { ierr = EPSGCGESetPrint(eps,print);CHKERRQ(ierr); }
     ierr = PetscOptionsTail();CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
+/*
+	set shift
+*/
+static PetscErrorCode EPSGCGESetShift_GCGE(EPS eps,PetscInt shift)
+{
+  EPS_GCGE *gcge = (EPS_GCGE*)eps->data;
 
+  PetscFunctionBegin;
+  gcge->autoshift = shift;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode EPSGCGESetShift(EPS eps,PetscInt shift)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(eps,EPS_CLASSID,1);
+  PetscValidLogicalCollectiveInt(eps,shift,2);
+  ierr = PetscTryMethod(eps,"EPSGCGESetShift_C",(EPS,PetscInt),(eps,shift));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+static PetscErrorCode EPSGCGEGetShift_GCGE(EPS eps,PetscInt *shift)
+{
+  EPS_GCGE *gcge = (EPS_GCGE*)eps->data;
+
+  PetscFunctionBegin;
+  *shift = gcge->autoshift;
+  PetscFunctionReturn(0);
+}
+PetscErrorCode EPSGCGEGetShift(EPS eps,PetscInt *shift)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(eps,EPS_CLASSID,1);
+  PetscValidIntPointer(shift,2);
+  ierr = PetscUseMethod(eps,"EPSGCGEGetShift_C",(EPS,PetscInt*),(eps,shift));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* 
+	set print
+*/
+static PetscErrorCode EPSGCGESetPrint_GCGE(EPS eps,PetscInt print)
+{
+  EPS_GCGE *gcge = (EPS_GCGE*)eps->data;
+
+  PetscFunctionBegin;
+  gcge->print = print;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode EPSGCGESetPrint(EPS eps,PetscInt print)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(eps,EPS_CLASSID,1);
+  PetscValidLogicalCollectiveInt(eps,print,2);
+  ierr = PetscTryMethod(eps,"EPSGCGESetPrint_C",(EPS,PetscInt),(eps,print));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+static PetscErrorCode EPSGCGEGetPrint_GCGE(EPS eps,PetscInt *print)
+{
+  EPS_GCGE *gcge = (EPS_GCGE*)eps->data;
+
+  PetscFunctionBegin;
+  *print = gcge->print;
+  PetscFunctionReturn(0);
+}
+PetscErrorCode EPSGCGEGetPrint(EPS eps,PetscInt *print)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(eps,EPS_CLASSID,1);
+  PetscValidIntPointer(print,2);
+  ierr = PetscUseMethod(eps,"EPSGCGEGetPrint_C",(EPS,PetscInt*),(eps,print));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 PetscErrorCode EPSView_GCGE(EPS eps,PetscViewer viewer)
 {
     PetscFunctionBegin;
@@ -520,7 +616,7 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     ierr = PetscNewLog(eps,&ctx);CHKERRQ(ierr);
     eps->max_it = 1000;
     eps->data = (void*)ctx;
-    eps->nev = 2;//Default
+    eps->nev = 6;//Default
     ierr = EPSSetFromOptions(eps);CHKERRQ(ierr);
     eps->ncv = 2*eps->nev;
     eps->mpd = eps->ncv;
@@ -532,6 +628,8 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     ctx->tol_gcg[0] = 1e-1;
     ctx->tol_gcg[1] = 1e-8;
     ctx->max_iter_gcg = 500;
+	ctx->autoshift = 0;
+	ctx->print = 0;
 
     eps->categ = EPS_CATEGORY_OTHER;
 
@@ -544,6 +642,12 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     eps->ops->view           = EPSView_GCGE;
     eps->ops->backtransform  = EPSBackTransform_Default;
     eps->ops->setdefaultst   = EPSSetDefaultST_NoFactor;
+
+	ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetShift_C",EPSGCGESetShift_GCGE);CHKERRQ(ierr);
+    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetShift_C",EPSGCGEGetShift_GCGE);CHKERRQ(ierr);
+	ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetPrint_C",EPSGCGESetPrint_GCGE);CHKERRQ(ierr);
+    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetPrint_C",EPSGCGEGetPrint_GCGE);CHKERRQ(ierr);
+
     PetscFunctionReturn(0);
 
 }
