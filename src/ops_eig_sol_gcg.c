@@ -111,8 +111,8 @@ static void InitializeX(void **V, void **ritz_vec, void *B, int nevGiven)
 	ops_gcg->Printf("V\n");	
 	ops_gcg->MultiVecView(V,0,sizeV,ops_gcg);
 #endif
-	ops_gcg->Printf("sizeX = %d, nevGiven = %d, %s\n",
-		sizeX,nevGiven,gcg_solver->initX_orth_method);
+	//ops_gcg->Printf("sizeX = %d, nevGiven = %d, %s\n",
+	//	sizeX,nevGiven,gcg_solver->initX_orth_method);
 	/* orth_dbl_ws begin from the end of ss_eval */
 	double *orth_dbl_ws = gcg_solver->dbl_ws+gcg_solver->nevMax+2*gcg_solver->block_size;
 	if (0 == strcmp("mgs", gcg_solver->initX_orth_method))
@@ -245,7 +245,7 @@ if (gcg_solver->print) {
 				ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
 						startN+idx,ss_eval[startN+idx],
 						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
-} 
+}
 				break;
 			}
 		}
@@ -1375,10 +1375,10 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 	nev  = nevInit<nevMax?2*block_size:nev0;
 	nev  = nev<nev0?nev:nev0;
 	numIter = 0; /* numIter 取负值时, 小于等于零的迭代不进行判断收敛性 */
-if (gcg_solver->print) {
+#if PRINT_FIRST_UNCONV
 	ops_gcg->Printf("------------------------------\n");
 	ops_gcg->Printf("numIter\tnevConv\n",numIter, *nevConv);		
-}
+#endif
 	do {
 #if DEBUG
 		ops_gcg->Printf("numIter = %d, sizeC = %d, sizeN = %d, sizeX = %d, sizeP = %d, sizeW = %d, sizeV = %d\n",
@@ -1505,8 +1505,7 @@ if (gcg_solver->print) {
 	/* eval evec 都是 sizeX 长 */
 	int inc = 1;
 	dcopy(&sizeX,ss_eval,&inc,eval,&inc);
-	
-#if TIME_GCG
+if (gcg_solver->printtime) {	
 	ops_gcg->Printf("|--GCG----------------------------\n");
 	time_gcg.time_total = time_gcg.checkconv_time
 		+time_gcg.compP_time
@@ -1551,7 +1550,7 @@ if (gcg_solver->print) {
 	time_gcg.dsyevx_time    = 0.0;
 	time_gcg.initX_time     = 0.0;
 	time_gcg.linsol_time    = 0.0;
-#endif
+	}
 	
 	return;
 }
@@ -1560,7 +1559,7 @@ if (gcg_solver->print) {
 void EigenSolverSetup_GCG(
 	double gapMin , 
 	int    nevInit , int    nevMax , int block_size, 
-	double tol[2]  , int    numIterMax, int print,
+	double tol[2]  , int    numIterMax, int print, int printtime,
 	int user_defined_multi_linear_solver,
 	void **mv_ws[4], double *dbl_ws, int *int_ws,	
 	struct OPS_ *ops)
@@ -1570,7 +1569,7 @@ void EigenSolverSetup_GCG(
 		.nevInit    = 3 , .nevGiven   = 0,
 		.block_size = 1 , .numIterMax = 4, .user_defined_multi_linear_solver = 0,
 		.mv_ws      = {}, .dbl_ws  = NULL, .int_ws = NULL,	
-		.print      = 0,	
+		.print      = 0, .printtime = 0,
 		/* 算法内部参数 */		
 		.initX_orth_method     = "mgs",
 		.initX_orth_block_size = -1   ,
@@ -1605,6 +1604,7 @@ void EigenSolverSetup_GCG(
 	gcg_solver_static.tol[1]     = tol[1];
 	gcg_solver_static.numIterMax = numIterMax;
 	gcg_solver_static.print      = print;
+	gcg_solver_static.printtime      = printtime;
 	gcg_solver_static.mv_ws[0]   = mv_ws[0];
 	gcg_solver_static.mv_ws[1]   = mv_ws[1];
 	gcg_solver_static.mv_ws[2]   = mv_ws[2];
@@ -1910,10 +1910,6 @@ void GCGE_Setparameters(double gapMin, int shift, struct OPS_ *ops)
 /* 命令行获取 GCG 的算法参数 勿用 有 BUG, 
 	 * 不应该改变 nevMax nevInit block_size, 这些与工作空间有关 */
 }
-int gcgeprint(int flag)
-{				
-	return flag;
-} 
 void GCGE_Destroymvws(void ***gcg_mv_ws, double *dbl_ws, int *int_ws, int nevMax, int block_size, struct OPS_ *ops) 
 {
 	ops->MultiVecDestroy(&gcg_mv_ws[0],nevMax+2*block_size,ops);

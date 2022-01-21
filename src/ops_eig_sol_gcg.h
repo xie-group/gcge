@@ -28,7 +28,7 @@ typedef struct GCGSolver_ {
 	int    numIter   ; int    sizeV  ;
 	void   **mv_ws[4]; double *dbl_ws; int *int_ws;
 	int    length_dbl_ws;
-	int    print;
+	int    print; int printtime;
 	/* 用户自定义多线性解法器: 
 	 * 1 表示用户自定义, 那么在 ComputeW 时不再Setup线性解法器 
 	 *   那么, 用户需要给定 
@@ -55,7 +55,7 @@ typedef struct GCGSolver_ {
 void EigenSolverSetup_GCG(
 	double gapMin, 
 	int    nevInit , int    nevMax, int block_size,
-	double tol[2]  , int    numIterMax, int print,
+	double tol[2]  , int    numIterMax, int print, int printtime,
 	int    user_defined_multi_linear_solver,
 	void **mv_ws[4], double *dbl_ws   , int *int_ws, 
 	struct OPS_ *ops);
@@ -89,7 +89,6 @@ void GCGE_Create(void *A, int nevMax, int block_size, int nevInit, void ***gcg_m
 
 void GCGE_Setparameters(double gapMin, int shift, struct OPS_ *ops);
 
-int gcgeprint(int flag);
 
 void GCGE_Destroymvws(void ***gcg_mv_ws, double *dbl_ws, int *int_ws, int nevMax, int block_size, struct OPS_ *ops);
 
