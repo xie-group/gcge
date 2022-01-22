@@ -355,7 +355,7 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
     EPSCheckUnsupported(eps,EPS_FEATURE_BALANCE | EPS_FEATURE_ARBITRARY | EPS_FEATURE_REGION | EPS_FEATURE_STOPPING);
     EPSCheckIgnored(eps,EPS_FEATURE_EXTRACTION | EPS_FEATURE_CONVERGENCE);
 
-   if (eps->converged == EPSConvergedRelative) {
+    if (eps->converged == EPSConvergedRelative) {
         if (eps->tol > 0) {
             gcge->tol_gcg[1] = eps->tol;
         }
@@ -365,6 +365,22 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
             gcge->tol_gcg[0] = eps->tol;
         }
     }
+    eps->max_it = 1000;
+    eps->ncv = 2*eps->nev;
+    eps->mpd = eps->ncv;
+    gcge->nevConv = eps->nev;
+    gcge->block_size = (gcge->nevConv)>20?((PetscInt)((gcge->nevConv)/3)):((PetscInt)((gcge->nevConv)/2));
+    gcge->nevInit = 3*(gcge->block_size);
+    gcge->nevMax = (gcge->nevInit)+(gcge->nevConv);
+    if (eps->nev<6) {
+        gcge->block_size = gcge->nevConv;
+        gcge->nevInit = 2*gcge->nevConv;
+        gcge->nevMax = gcge->nevInit;
+    }
+    gcge->gapMin = 1e-5;
+    gcge->tol_gcg[0] = 1e-1;
+    gcge->tol_gcg[1] = 1e-8;
+    gcge->max_iter_gcg = 500;
 
     if (!eps->V) { ierr = EPSGetBV(eps,&eps->V);CHKERRQ(ierr); }
     ierr = EPSAllocateSolution(eps,0);CHKERRQ(ierr);
@@ -381,7 +397,7 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     PetscReal       gapMin, tol_gcg[2];
     PetscMPIInt     size,rank;
     PetscScalar	    *a, *b;
-    PetscBool        shift;
+    PetscBool       shift;
 
     tol_gcg[0] = gcge->tol_gcg[0];
     tol_gcg[1] = gcge->tol_gcg[1];
@@ -598,30 +614,13 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     PetscErrorCode ierr;
     PetscFunctionBegin;
     ierr = PetscNewLog(eps,&ctx);CHKERRQ(ierr);
-    eps->max_it = 1000;
+
     eps->data = (void*)ctx;
-    eps->nev = 1;  // Default
-    eps->ncv = 2*eps->nev;
-    eps->mpd = eps->ncv;
-    ctx->nevConv = eps->nev;
-    ctx->block_size = (ctx->nevConv)>20?((PetscInt)((ctx->nevConv)/3)):((PetscInt)((ctx->nevConv)/2));
-    ctx->nevInit = 3*(ctx->block_size);
-    ctx->nevMax = (ctx->nevInit)+(ctx->nevConv);
-    if (eps->nev<6) {
-        ctx->block_size = ctx->nevConv;
-        ctx->nevInit = 2*ctx->nevConv;
-        ctx->nevMax = ctx->nevInit;
-    }
-    ctx->gapMin = 1e-5;
-    ctx->tol_gcg[0] = 1e-1;
-    ctx->tol_gcg[1] = 1e-8;
-    ctx->max_iter_gcg = 500;
+    eps->categ = EPS_CATEGORY_OTHER;
     ctx->autoshift = 0;
     ctx->print = 0;
     ctx->printtime = 0;
     ctx->orthmethod = "mgs";
-
-    eps->categ = EPS_CATEGORY_OTHER;
 
     eps->ops->solve          = EPSSolve_GCGE;
     eps->ops->setup          = EPSSetUp_GCGE;
