@@ -45,6 +45,7 @@ static int sizeN, startN, endN;
 static int sizeP, startP, endP;
 static int sizeW, startW, endW;
 static int sizeC, sizeX , sizeV, endX;
+static int indd;
 
 
 static void   **mv_ws[3]; 
@@ -233,7 +234,7 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
 					inner_prod[idx] > fabs(ss_eval[startN+idx])*tol[1]) {
 if (gcg_solver->print) {
 				ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
-						startN+idx,ss_eval[startN+idx],
+						indd,ss_eval[startN+idx],
 						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
 }
 				break;
@@ -243,12 +244,13 @@ if (gcg_solver->print) {
 			if (inner_prod[idx] > tol[0]) {
 if (gcg_solver->print) {
 				ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
-						startN+idx,ss_eval[startN+idx],
+						indd,ss_eval[startN+idx],
 						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
 }
 				break;
 			}
 		}
+		//indd++;
 	}	
 	for ( ; idx > 0; --idx) {
 		/* 最后一个收敛的特征值与第一个不收敛的特征值不是重根 */
@@ -1499,6 +1501,7 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 		ComputeRitzVec(ritz_vec,V,ss_evec);
 		
 		++numIter;
+		++indd;
 	} while (numIter < numIterMax);
 	
 	gcg_solver->numIter = numIter+(gcg_solver->numIterMax-numIterMax);
