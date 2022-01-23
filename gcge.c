@@ -333,7 +333,6 @@ static int GetOptionFromCommandLine_GCGE (
 		case 's':
 			str_value = (char*) value;
 			PetscOptionsGetString(NULL, NULL, name, str_value, 8, &set);
-			//set = DefaultGetOptionFromCommandLine(name, type, value, argc, argv, ops);
 			break;
 			default:
 		break;
@@ -462,8 +461,8 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     GCGE_Setparameters(gapMin,shift,ops);
     ops->EigenSolver(A,B,eval,evec,nevGiven,&nevConv,ops);
     ierr = BVGetArray((BV)evec,&b);CHKERRQ(ierr);
-    PetscInt pnev = (PetscInt)nevConv/size+1;
-    for (i=0;i<pnev*N;++i) {
+    PetscInt pnev = N/size;
+    for (i=0;i<(pnev+1)*nevConv;++i) {
         a[i] = b[i];
     }
     ierr = BVRestoreArray(eps->V,&a);CHKERRQ(ierr);
@@ -621,7 +620,6 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     ctx->print = 0;
     ctx->printtime = 0;
     ctx->orthmethod = "mgs";
-
     eps->ops->solve          = EPSSolve_GCGE;
     eps->ops->setup          = EPSSetUp_GCGE;
     eps->ops->setupsort      = EPSSetUpSort_Basic; 
