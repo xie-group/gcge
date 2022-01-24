@@ -593,7 +593,7 @@ PetscErrorCode EPSView_GCGE(EPS eps,PetscViewer viewer)
     PetscFunctionBegin;
     ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);CHKERRQ(ierr);
     if (isascii) {
-        ierr = PetscViewerASCIIPrintf(viewer,"  orthogonalization=b%s (Block Modified Gram-Schmidt)\n",ctx->orthmethod);CHKERRQ(ierr);
+        ierr = PetscViewerASCIIPrintf(viewer,"  orthogonalization = b%s (Block Modified Gram-Schmidt)\n",ctx->orthmethod);CHKERRQ(ierr);
         if (ctx->autoshift==1)
         {
             ierr = PetscViewerASCIIPrintf(viewer,"  shift = gcge auto shift\n");CHKERRQ(ierr);
