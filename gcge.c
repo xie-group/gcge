@@ -333,6 +333,7 @@ static int GetOptionFromCommandLine_GCGE (
 		case 's':
 			str_value = (char*) value;
 			PetscOptionsGetString(NULL, NULL, name, str_value, 8, &set);
+			//set = DefaultGetOptionFromCommandLine(name, type, value, argc, argv, ops);
 			break;
 			default:
 		break;
@@ -364,9 +365,9 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
             gcge->tol_gcg[0] = eps->tol;
         }
     }
-    eps->max_it = 1000;
     eps->ncv = 2*eps->nev;
     eps->mpd = eps->ncv;
+    if (eps->max_it==PETSC_DEFAULT) eps->max_it = PETSC_MAX_INT;
     gcge->nevConv = eps->nev;
     gcge->block_size = (gcge->nevConv)>20?((PetscInt)((gcge->nevConv)/3)):((PetscInt)((gcge->nevConv)/2));
     gcge->nevInit = 3*(gcge->block_size);
@@ -379,7 +380,7 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
     gcge->gapMin = 1e-5;
     gcge->tol_gcg[0] = 1e-1;
     gcge->tol_gcg[1] = 1e-8;
-    gcge->max_iter_gcg = 500;
+    gcge->max_iter_gcg = eps->max_it;
 
     if (!eps->V) { ierr = EPSGetBV(eps,&eps->V);CHKERRQ(ierr); }
     ierr = EPSAllocateSolution(eps,0);CHKERRQ(ierr);
@@ -404,16 +405,13 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     nevConv 	= gcge->nevConv;
     nevMax  	= gcge->nevMax;
     nevGiven 	= gcge->nevGiven;
-    max_iter_gcg= eps->max_it;
+    max_iter_gcg= gcge->max_iter_gcg;
     block_size  = gcge->block_size;
     flag		= 0;
     gapMin 		= gcge->gapMin;
     shift       = gcge->autoshift;
     print       = gcge->print;
     printtime   = gcge->printtime;
-    if (eps->numbermonitors>0) {
-        print = 1;
-    }
     OPS *slepc_ops;
     slepc_ops = NULL;
     PetscFunctionBegin;
@@ -456,6 +454,9 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     srand(0);
     int i;
     ierr = BVGetArray(eps->V,&a);CHKERRQ(ierr);
+    if (eps->numbermonitors>0) {
+        print = 1;
+    }
     EigenSolverSetup_GCG(gapMin,nevInit,nevMax,block_size,
             tol_gcg,max_iter_gcg,print,printtime,flag,gcg_mv_ws,dbl_ws,int_ws,ops);
     GCGE_Setparameters(gapMin,shift,ops);
@@ -467,8 +468,8 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     }
     ierr = BVRestoreArray(eps->V,&a);CHKERRQ(ierr);
     ierr = BVRestoreArray((BV)evec,&b);CHKERRQ(ierr);
-    eps->nconv = ((GCGSolver*)ops->eigen_solver_workspace)->nevConv;
-    eps->reason = EPS_CONVERGED_TOL;
+    eps->nconv = nevConv;
+    eps->reason = eps->nconv >= eps->nev ? EPS_CONVERGED_TOL : EPS_DIVERGED_ITS;
     for (i=0;i<eps->nconv;i++) eps->eigr[i] = eval[i];
     eps->its = ((GCGSolver*)ops->eigen_solver_workspace)->numIter;
     GCGE_Destroymvws(gcg_mv_ws, dbl_ws, int_ws, nevMax, block_size,ops);
@@ -609,17 +610,17 @@ PetscErrorCode EPSReset_GCGE(EPS eps)
 
 SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
 {
-    EPS_GCGE       *ctx;
+    EPS_GCGE       *gcge;
     PetscErrorCode ierr;
     PetscFunctionBegin;
-    ierr = PetscNewLog(eps,&ctx);CHKERRQ(ierr);
+    ierr = PetscNewLog(eps,&gcge);CHKERRQ(ierr);
 
-    eps->data = (void*)ctx;
+    eps->data = (void*)gcge;
     eps->categ = EPS_CATEGORY_OTHER;
-    ctx->autoshift = 0;
-    ctx->print = 0;
-    ctx->printtime = 0;
-    ctx->orthmethod = "mgs";
+    gcge->autoshift = 1;
+    gcge->print = 0;
+    gcge->printtime = 0;
+    gcge->orthmethod = "mgs";
     eps->ops->solve          = EPSSolve_GCGE;
     eps->ops->setup          = EPSSetUp_GCGE;
     eps->ops->setupsort      = EPSSetUpSort_Basic; 
