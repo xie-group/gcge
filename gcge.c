@@ -6,19 +6,19 @@
 #include <slepceps.h>
 
 typedef struct {
-  OPS                  *gcgeops;   
-  PetscInt             block_size;
-  PetscInt             nevConv;
-  PetscInt             nevInit; 
-  PetscInt             nevMax; 
-  PetscInt             nevGiven;
-  PetscInt             max_iter_gcg;   
-  PetscReal            tol_gcg[2];
-  PetscReal            gapMin;
-  PetscBool			   autoshift;
-  PetscBool            print;
-  PetscBool            printtime;
-  char                 *orthmethod;
+    OPS                  *gcgeops;
+    PetscInt             block_size;
+    PetscInt             nevConv;
+    PetscInt             nevInit;
+    PetscInt             nevMax;
+    PetscInt             nevGiven;
+    PetscInt             max_iter_gcg;
+    PetscReal            tol_gcg[2];
+    PetscReal            gapMin;
+    PetscBool            autoshift;
+    PetscBool            print;
+    PetscBool            printtime;
+    char                 *orthmethod;
 } EPS_GCGE;
 
 /* multi-vec */
@@ -354,7 +354,8 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
     if (!eps->which) eps->which = EPS_SMALLEST_REAL;
     EPSCheckUnsupported(eps,EPS_FEATURE_BALANCE | EPS_FEATURE_ARBITRARY | EPS_FEATURE_REGION | EPS_FEATURE_STOPPING);
     EPSCheckIgnored(eps,EPS_FEATURE_EXTRACTION | EPS_FEATURE_CONVERGENCE);
-
+    gcge->tol_gcg[0] = 1e-1;
+    gcge->tol_gcg[1] = 1e-8;
     if (eps->converged == EPSConvergedRelative) {
         if (eps->tol > 0) {
             gcge->tol_gcg[1] = eps->tol;
@@ -378,8 +379,6 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
         gcge->nevMax = gcge->nevInit;
     }
     gcge->gapMin = 1e-5;
-    gcge->tol_gcg[0] = 1e-1;
-    gcge->tol_gcg[1] = 1e-8;
     gcge->max_iter_gcg = eps->max_it;
 
     if (!eps->V) { ierr = EPSGetBV(eps,&eps->V);CHKERRQ(ierr); }
@@ -471,7 +470,10 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     eps->nconv = nevConv;
     eps->reason = eps->nconv >= eps->nev ? EPS_CONVERGED_TOL : EPS_DIVERGED_ITS;
     for (i=0;i<eps->nconv;i++) eps->eigr[i] = eval[i];
-    eps->its = ((GCGSolver*)ops->eigen_solver_workspace)->numIter;
+    eps->its = ((GCGSolver*)ops->eigen_solver_workspace)->numIter+1;
+    if (eps->nconv < eps->nev) {
+        eps->its = ((GCGSolver*)ops->eigen_solver_workspace)->numIter;
+    }
     GCGE_Destroymvws(gcg_mv_ws, dbl_ws, int_ws, nevMax, block_size,ops);
     OPS_Destroy (&slepc_ops);
     PetscFunctionReturn(0);
@@ -511,7 +513,6 @@ PetscErrorCode EPSSetFromOptions_GCGE(PetscOptionItems *PetscOptionsObject,EPS e
 static PetscErrorCode EPSGCGESetShift_GCGE(EPS eps,PetscBool shift)
 {
     EPS_GCGE *gcge = (EPS_GCGE*)eps->data;
-
     PetscFunctionBegin;
     gcge->autoshift = shift;
     PetscFunctionReturn(0);

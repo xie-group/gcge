@@ -202,7 +202,8 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
 #if DEBUG
 	ops_gcg->Printf("numCheck = %d\n", numCheck);
 #endif
-	int start[2], end[2], idx; double *inner_prod;
+	int start[2], end[2], idx;
+	double *inner_prod;
 	int nevConv;
 	start[0] = startN; end[0] = start[0]+numCheck;
 	start[1] = 0     ; end[1] = numCheck;	
@@ -227,14 +228,15 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
 			inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
 #endif
 	}
+
 	for (idx = 0; idx < numCheck; ++idx) {
 		/* 绝对残量 和 相对残量 需分别小于 tol[0] 和 tol[1] */
 		if (fabs(ss_eval[startN+idx]) > tol[1]) {
 			if (inner_prod[idx] > tol[0] || 
 					inner_prod[idx] > fabs(ss_eval[startN+idx])*tol[1]) {
 if (gcg_solver->print) {
-				ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
-						indd,ss_eval[startN+idx],
+				ops_gcg->Printf("%3d EPS nconv=%d first unconverged value (error(abs,rel)) %6.5e (%6.5e, %6.5e)\n",
+						indd+1,startN,ss_eval[startN+idx],
 						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
 }
 				break;
@@ -622,7 +624,6 @@ static void ComputeW(void **V, void *A, void *B,
 	/* 20210628 recover A */
 	if (sigma!=0.0 && B!=NULL && ops_gcg->MatAxpby!=NULL) {
 		/* A = -sigma B + A */
-		printf("mat=======\n");
 		ops_gcg->MatAxpby(-sigma,B,1.0,A,ops_gcg);
 	}
 #endif
@@ -1394,7 +1395,8 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 		   numCheck = (startN+sizeN<endX)?(sizeN):(endX-startN);
 		}
 		numCheck = numCheck<gcg_solver->check_conv_max_num?numCheck:gcg_solver->check_conv_max_num;
-		*nevConv = CheckConvergence(A,B,ss_eval,ritz_vec,numCheck,tol,offsetW);		
+		if (numCheck==0) {numCheck=1;}
+		*nevConv = CheckConvergence(A,B,ss_eval,ritz_vec,numCheck,tol,offsetW);
 #if PRINT_FIRST_UNCONV
 		ops_gcg->Printf("%d\t%d\n",numIter, *nevConv);		
 #endif
@@ -1503,7 +1505,6 @@ static void GCG(void *A, void *B, double *eval, void **evec,
 		++numIter;
 		++indd;
 	} while (numIter < numIterMax);
-	
 	gcg_solver->numIter = numIter+(gcg_solver->numIterMax-numIterMax);
 	/* eval evec 都是 sizeX 长 */
 	int inc = 1;
@@ -1607,7 +1608,7 @@ void EigenSolverSetup_GCG(
 	gcg_solver_static.tol[1]     = tol[1];
 	gcg_solver_static.numIterMax = numIterMax;
 	gcg_solver_static.print      = print;
-	gcg_solver_static.printtime      = printtime;
+	gcg_solver_static.printtime  = printtime;
 	gcg_solver_static.mv_ws[0]   = mv_ws[0];
 	gcg_solver_static.mv_ws[1]   = mv_ws[1];
 	gcg_solver_static.mv_ws[2]   = mv_ws[2];
