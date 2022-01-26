@@ -200,60 +200,62 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
     time_gcg.checkconv_time -= ops_gcg->GetWtime();
 #endif
 #if DEBUG
-	ops_gcg->Printf("numCheck = %d\n", numCheck);
+    ops_gcg->Printf("numCheck = %d\n", numCheck);
 #endif
-	int start[2], end[2], idx;
-	double *inner_prod;
-	int nevConv;
-	start[0] = startN; end[0] = start[0]+numCheck;
-	start[1] = 0     ; end[1] = numCheck;	
-	ops_gcg->MatDotMultiVec(A,ritz_vec,mv_ws[0],start,end,ops_gcg);	
-	ops_gcg->MatDotMultiVec(B,ritz_vec,mv_ws[1],start,end,ops_gcg);	
-	/* lambda Bx */
-	ops_gcg->MultiVecLinearComb(NULL,mv_ws[1],0,start,end,
-			NULL,0,ss_eval+startN,1,ops_gcg);
-	start[0] = 0     ; end[0] = numCheck;
-	start[1] = 0     ; end[1] = numCheck;
-	/* Ax - lambda Bx */
-	ops_gcg->MultiVecAxpby(-1.0,mv_ws[1],1.0,mv_ws[0],start,end,ops_gcg);
-	/* 不使用 ss_evec 部分 */
-	inner_prod = dbl_ws+(sizeV-sizeC)*sizeW;
-	ops_gcg->MultiVecInnerProd('D',mv_ws[0],mv_ws[0],0,
-			start,end,inner_prod,1,ops_gcg);
-	for (idx = 0; idx < numCheck; ++idx) {
-		inner_prod[idx] = sqrt(inner_prod[idx]);
-#if DEBUG 
-		ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
-			startN+idx,ss_eval[startN+idx],
-			inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
-#endif
-	}
+    int start[2], end[2], idx;
+    double *inner_prod;
+    int nevConv;
+    start[0] = startN; end[0] = start[0]+numCheck;
+    start[1] = 0     ; end[1] = numCheck;
+    ops_gcg->MatDotMultiVec(A,ritz_vec,mv_ws[0],start,end,ops_gcg);
+    ops_gcg->MatDotMultiVec(B,ritz_vec,mv_ws[1],start,end,ops_gcg);
+    //void *E; E = NULL;
+    //ops_gcg->MatDotMultiVec(E,ritz_vec,mv_ws[3],start,end,ops_gcg);
 
-	for (idx = 0; idx < numCheck; ++idx) {
-		/* 绝对残量 和 相对残量 需分别小于 tol[0] 和 tol[1] */
-		if (fabs(ss_eval[startN+idx]) > tol[1]) {
-			if (inner_prod[idx] > tol[0] || 
-					inner_prod[idx] > fabs(ss_eval[startN+idx])*tol[1]) {
-if (gcg_solver->print) {
-				ops_gcg->Printf("%3d EPS nconv=%d first unconverged value (error(abs,rel)) %6.5e (%6.5e, %6.5e)\n",
-						indd+1,startN,ss_eval[startN+idx],
-						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
-}
-				break;
-			}
-		}
-		else {
-			if (inner_prod[idx] > tol[0]) {
-if (gcg_solver->print) {
-				ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
-						indd,ss_eval[startN+idx],
-						inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
-}
-				break;
-			}
-		}
-		//indd++;
-	}	
+    /* lambda Bx */
+    ops_gcg->MultiVecLinearComb(NULL,mv_ws[1],0,start,end,
+            NULL,0,ss_eval+startN,1,ops_gcg);
+
+    start[0] = 0     ; end[0] = numCheck;
+    start[1] = 0     ; end[1] = numCheck;
+    /* Ax - lambda Bx */
+    ops_gcg->MultiVecAxpby(-1.0,mv_ws[1],1.0,mv_ws[0],start,end,ops_gcg);
+    /* 不使用 ss_evec 部分 */
+    inner_prod = dbl_ws+(sizeV-sizeC)*sizeW;
+    ops_gcg->MultiVecInnerProd('D',mv_ws[0],mv_ws[0],0,
+            start,end,inner_prod,1,ops_gcg);
+    for (idx = 0; idx < numCheck; ++idx) {
+        inner_prod[idx] = sqrt(inner_prod[idx]);
+#if DEBUG 
+        ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
+                startN+idx,ss_eval[startN+idx],
+                inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
+#endif
+    }
+
+    for (idx = 0; idx < numCheck; ++idx) {
+        /* 绝对残量 和 相对残量 需分别小于 tol[0] 和 tol[1] */
+        //if (fabs(ss_eval[startN+idx]) > tol[1]) {
+        if (inner_prod[idx] > tol[0] ||
+                inner_prod[idx] > fabs(ss_eval[startN+idx])*tol[1]) {
+            if (gcg_solver->print) {
+                ops_gcg->Printf("%3d EPS nconv=%3d first unconverged value (error(abs,rel)) %6.5e (%6.5e, %6.5e)\n",
+                        indd+1,startN,ss_eval[startN+idx],
+                        inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
+            }
+            break;
+        }
+        /*
+        if (inner_prod[idx] > tol[0]) {
+            if (gcg_solver->print) {
+                ops_gcg->Printf("GCG: [%d] %6.14e (%6.4e, %6.4e)\n",
+                    indd,ss_eval[startN+idx],
+                    inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
+            }
+            break;
+        }
+        */
+    }
 	for ( ; idx > 0; --idx) {
 		/* 最后一个收敛的特征值与第一个不收敛的特征值不是重根 */
 		if ( fabs((ss_eval[startN+idx-1]-ss_eval[startN+idx])/ss_eval[startN+idx-1]) 

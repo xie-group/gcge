@@ -373,7 +373,7 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
     gcge->block_size = (gcge->nevConv)>20?((PetscInt)((gcge->nevConv)/3)):((PetscInt)((gcge->nevConv)/2));
     gcge->nevInit = 3*(gcge->block_size);
     gcge->nevMax = (gcge->nevInit)+(gcge->nevConv);
-    if (eps->nev<6) {
+    if (eps->nev<5) {
         gcge->block_size = gcge->nevConv;
         gcge->nevInit = 2*gcge->nevConv;
         gcge->nevMax = gcge->nevInit;
@@ -467,7 +467,7 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     }
     ierr = BVRestoreArray(eps->V,&a);CHKERRQ(ierr);
     ierr = BVRestoreArray((BV)evec,&b);CHKERRQ(ierr);
-    eps->nconv = nevConv;
+    eps->nconv = nevConv>eps->nev?eps->nev:nevConv;
     eps->reason = eps->nconv >= eps->nev ? EPS_CONVERGED_TOL : EPS_DIVERGED_ITS;
     for (i=0;i<eps->nconv;i++) eps->eigr[i] = eval[i];
     eps->its = ((GCGSolver*)ops->eigen_solver_workspace)->numIter+1;
