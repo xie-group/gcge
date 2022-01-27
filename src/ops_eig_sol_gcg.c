@@ -239,7 +239,7 @@ static int CheckConvergence(void *A, void *B, double *ss_eval, void **ritz_vec,
         if (inner_prod[idx] > tol[0] ||
                 inner_prod[idx] > fabs(ss_eval[startN+idx])*tol[1]) {
             if (gcg_solver->print) {
-                ops_gcg->Printf("%3d EPS nconv=%3d first unconverged value (error(abs,rel)) %6.5e (%6.5e, %6.5e)\n",
+                ops_gcg->Printf("%3d EPS nconv=%d first unconverged value (error(abs,rel)) %6.5e (%6.5e, %6.5e)\n",
                         indd+1,startN,ss_eval[startN+idx],
                         inner_prod[idx], inner_prod[idx]/fabs(ss_eval[startN+idx]));
             }
