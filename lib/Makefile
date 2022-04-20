@@ -2,13 +2,14 @@
 #
 # Makefile created by Dev-C++ 5.11
 
+include ../Makefile.inc
+
 UNAME ?= $(shell uname)
 VERSION := 3.0
 
 OBJ      = ../src/ops.o ../src/ops_eig_sol_gcg.o ../src/ops_lin_sol.o ../src/ops_multi_vec.o ../src/ops_orth.o ../app/app_lapack.o ../app/app_ccs.o
 LINKOBJ  = ../src/ops.o ../src/ops_eig_sol_gcg.o ../src/ops_lin_sol.o ../src/ops_multi_vec.o ../src/ops_orth.o ../app/app_lapack.o ../app/app_ccs.o
 
-LIBBLASLAPACK = -lblas -llapack
 LIB = -lpthread -lmpi -lm -lstdc++ -ldl
 ifeq ($(UNAME), Darwin)
 	LIB +=
@@ -37,9 +38,6 @@ else
 	SOFLAGS ?= -shared -Wl,-soname,$(SONAMELIB)
 	LDFLAGS ?=
 endif
-
-CPP      = mpic++ -D__DEBUG__
-CC       = mpicc  -D__DEBUG__
 
 all: $(OBJ)
 	@echo "Building libgcge.$(SOLIB_SUFFIX) ..."

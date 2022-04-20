@@ -1,6 +1,8 @@
 # Project: TestOPS
 # Makefile created by Dev-C++ 5.11
 
+include ./Makefile.inc
+
 UNAME ?= $(shell uname)
 VERSION ?= 3.0
 
@@ -37,9 +39,6 @@ else
 	LIBPETSC +=
 	LIBSLEPC +=
 endif
-
-CPP      = mpic++ -D__DEBUG__
-CC       = mpicc  -D__DEBUG__
 
 SLEPCPETSCLIB = -lslepc -lpetsc
 GCGELIB := -L./lib -Wl,-rpath,./lib -lgcge
