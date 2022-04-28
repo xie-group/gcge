@@ -319,7 +319,7 @@ static int GetOptionFromCommandLine_GCGE (
 		const char *name, char type, void *value,
 		int argc, char* argv[], struct OPS_ *ops)
 {
-	PetscBool set;
+	PetscBool set = PETSC_TRUE;
 	int *int_value; double *dbl_value; char *str_value; 
 	switch (type) {
 		case 'i':
@@ -335,8 +335,8 @@ static int GetOptionFromCommandLine_GCGE (
 			PetscOptionsGetString(NULL, NULL, name, str_value, 8, &set);
 			//set = DefaultGetOptionFromCommandLine(name, type, value, argc, argv, ops);
 			break;
-			default:
-		break;
+        default:
+            break;
 	}	        
 	return set;
 }
@@ -621,7 +621,14 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     gcge->autoshift = 1;
     gcge->print = 0;
     gcge->printtime = 0;
-    gcge->orthmethod = "mgs";
+    /*
+    char orthmethod[] = "mgs";
+    gcge->orthmethod = orthmethod;
+    */
+    gcge->orthmethod = (char*)malloc(3 * sizeof(char));
+    gcge->orthmethod[0] = 'm';
+    gcge->orthmethod[1] = 'g';
+    gcge->orthmethod[2] = 's';
     eps->ops->solve          = EPSSolve_GCGE;
     eps->ops->setup          = EPSSetUp_GCGE;
     eps->ops->setupsort      = EPSSetUpSort_Basic; 
