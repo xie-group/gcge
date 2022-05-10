@@ -18,7 +18,8 @@ typedef struct {
     PetscBool            autoshift;
     PetscBool            print;
     PetscBool            printtime;
-    char                 *orthmethod;
+    EPSGCGEOrthMethod    orthmethod;
+
 } EPS_GCGE;
 
 /* multi-vec */
@@ -319,7 +320,7 @@ static int GetOptionFromCommandLine_GCGE (
 		const char *name, char type, void *value,
 		int argc, char* argv[], struct OPS_ *ops)
 {
-	PetscBool set = PETSC_TRUE;
+	PetscBool set;
 	int *int_value; double *dbl_value; char *str_value; 
 	switch (type) {
 		case 'i':
@@ -488,22 +489,28 @@ PetscErrorCode EPSDestroy_GCGE(EPS eps)
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetShift_C",NULL);CHKERRQ(ierr);
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetShift_C",NULL);CHKERRQ(ierr);
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetPrint_C",NULL);CHKERRQ(ierr);
-    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetPrint_C",NULL);CHKERRQ(ierr);    
+    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetPrint_C",NULL);CHKERRQ(ierr);
+    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetOrthMethod_C",NULL);CHKERRQ(ierr);
+    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetOrthMethod_C",NULL);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
 
 PetscErrorCode EPSSetFromOptions_GCGE(PetscOptionItems *PetscOptionsObject,EPS eps)
 {
-    PetscErrorCode  ierr;
-    EPS_GCGE        *ctx = (EPS_GCGE*)eps->data;
-    PetscBool        shift, printtime;
-    PetscBool       flg;
+    PetscErrorCode    ierr;
+    EPS_GCGE          *ctx = (EPS_GCGE*)eps->data;
+    PetscBool         shift, printtime;
+    PetscBool         flg;
+    EPSGCGEOrthMethod orthmethod;
     PetscFunctionBegin;
     ierr = PetscOptionsHead(PetscOptionsObject,"EPS GCGE Options");CHKERRQ(ierr);
     ierr = PetscOptionsBool("-eps_gcge_autoshift","autoshift for bcg","EPSGCGESetShift",ctx->autoshift,&shift,&flg);CHKERRQ(ierr);
     if (flg) { ierr = EPSGCGESetShift(eps,shift);CHKERRQ(ierr); }
     ierr = PetscOptionsBool("-eps_gcge_print_parttime","print time of each step of gcge","EPSGCGESetPrint",ctx->printtime,&printtime,&flg);CHKERRQ(ierr);
     if (flg) { ierr = EPSGCGESetPrint(eps,printtime);CHKERRQ(ierr); }
+    ierr = PetscOptionsEnum("-eps_gcge_orthmethod","Type of orthmethod","EPSGCGESetOrthMethod",EPSGCGEOrthMethods,(PetscEnum)ctx->orthmethod,(PetscEnum*)&orthmethod,&flg);CHKERRQ(ierr);
+    if (flg) { ierr = EPSGCGESetOrthMethod(eps,orthmethod);CHKERRQ(ierr); }
+
     ierr = PetscOptionsTail();CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
@@ -569,6 +576,7 @@ PetscErrorCode EPSGCGESetPrint(EPS eps,PetscBool printtime)
     ierr = PetscTryMethod(eps,"EPSGCGESetPrint_C",(EPS,PetscBool),(eps,printtime));CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
+
 static PetscErrorCode EPSGCGEGetPrint_GCGE(EPS eps,PetscBool *printtime)
 {
     EPS_GCGE *gcge = (EPS_GCGE*)eps->data;
@@ -577,6 +585,7 @@ static PetscErrorCode EPSGCGEGetPrint_GCGE(EPS eps,PetscBool *printtime)
     *printtime = gcge->printtime;
     PetscFunctionReturn(0);
 }
+
 PetscErrorCode EPSGCGEGetPrint(EPS eps,PetscBool *printtime)
 {
     PetscErrorCode ierr;
@@ -586,6 +595,51 @@ PetscErrorCode EPSGCGEGetPrint(EPS eps,PetscBool *printtime)
     ierr = PetscUseMethod(eps,"EPSGCGEGetPrint_C",(EPS,PetscBool*),(eps,printtime));CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
+
+/* set orthmethod*/
+static PetscErrorCode EPSGCGESetOrthMethod_GCGE(EPS eps,EPSGCGEOrthMethod orthmethod)
+{
+  EPS_GCGE *ctx = (EPS_GCGE*)eps->data;
+
+  PetscFunctionBegin;
+  if (ctx->orthmethod != orthmethod) {
+    ctx->orthmethod = orthmethod;
+    eps->state   = EPS_STATE_INITIAL;
+  }
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode EPSGCGESetOrthMethod(EPS eps,EPSGCGEOrthMethod orthmethod)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(eps,EPS_CLASSID,1);
+  PetscValidLogicalCollectiveEnum(eps,orthmethod,2);
+  ierr = PetscTryMethod(eps,"EPSGCGESetOrthMethod_C",(EPS,EPSGCGEOrthMethod),(eps,orthmethod));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode EPSGCGEGetOrthMethod_GCGE(EPS eps,EPSGCGEOrthMethod *orthmethod)
+{
+  EPS_GCGE *ctx = (EPS_GCGE*)eps->data;
+
+  PetscFunctionBegin;
+  *orthmethod = ctx->orthmethod;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode EPSGCGEGetOrthMethod(EPS eps,EPSGCGEOrthMethod *orthmethod)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(eps,EPS_CLASSID,1);
+  PetscValidIntPointer(orthmethod,2);
+  ierr = PetscUseMethod(eps,"EPSGCGEGetOrthMethod_C",(EPS,EPSGCGEOrthMethod*),(eps,orthmethod));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode EPSView_GCGE(EPS eps,PetscViewer viewer)
 {
     PetscErrorCode ierr;
@@ -594,11 +648,12 @@ PetscErrorCode EPSView_GCGE(EPS eps,PetscViewer viewer)
     PetscFunctionBegin;
     ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);CHKERRQ(ierr);
     if (isascii) {
-        ierr = PetscViewerASCIIPrintf(viewer,"  orthogonalization = b%s (Block Modified Gram-Schmidt)\n",ctx->orthmethod);CHKERRQ(ierr);
         if (ctx->autoshift==1)
         {
             ierr = PetscViewerASCIIPrintf(viewer,"  shift = gcge auto shift\n");CHKERRQ(ierr);
         }
+        ierr = PetscViewerASCIIPrintf(viewer,"  type of orthmethod = %s\n",EPSGCGEOrthMethods[ctx->orthmethod]);CHKERRQ(ierr);
+
     }
     PetscFunctionReturn(0);
 }
@@ -621,14 +676,6 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     gcge->autoshift = 1;
     gcge->print = 0;
     gcge->printtime = 0;
-    /*
-    char orthmethod[] = "mgs";
-    gcge->orthmethod = orthmethod;
-    */
-    gcge->orthmethod = (char*)malloc(3 * sizeof(char));
-    gcge->orthmethod[0] = 'm';
-    gcge->orthmethod[1] = 'g';
-    gcge->orthmethod[2] = 's';
     eps->ops->solve          = EPSSolve_GCGE;
     eps->ops->setup          = EPSSetUp_GCGE;
     eps->ops->setupsort      = EPSSetUpSort_Basic; 
@@ -638,12 +685,14 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     eps->ops->view           = EPSView_GCGE;
     eps->ops->backtransform  = EPSBackTransform_Default;
     eps->ops->setdefaultst   = EPSSetDefaultST_NoFactor;
+    gcge->orthmethod = EPS_GCGE_ORTHMETHOD_MGS;
 
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetShift_C",EPSGCGESetShift_GCGE);CHKERRQ(ierr);
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetShift_C",EPSGCGEGetShift_GCGE);CHKERRQ(ierr);
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetPrint_C",EPSGCGESetPrint_GCGE);CHKERRQ(ierr);
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetPrint_C",EPSGCGEGetPrint_GCGE);CHKERRQ(ierr);
-
+    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetOrthMethod_C",EPSGCGESetOrthMethod_GCGE);CHKERRQ(ierr);
+    ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetOrthMethod_C",EPSGCGEGetOrthMethod_GCGE);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 
 }
