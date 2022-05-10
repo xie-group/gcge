@@ -670,7 +670,7 @@ PetscErrorCode EPSView_GCGE(EPS eps,PetscViewer viewer)
     if (isascii) {
         if (ctx->autoshift==1)
         {
-            ierr = PetscViewerASCIIPrintf(viewer,"  shift = gcge auto shift\n");CHKERRQ(ierr);
+            ierr = PetscViewerASCIIPrintf(viewer,"  shift = auto\n");CHKERRQ(ierr);
         }
         ierr = PetscViewerASCIIPrintf(viewer,"  type of orthmethod = %s\n",EPSGCGEOrthMethods[ctx->orthmethod]);CHKERRQ(ierr);
 
