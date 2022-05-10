@@ -35,17 +35,20 @@ static void MultiVecCreateByMat (BV *des_bv, int num_vec, Mat src_mat, struct OP
 	BVSetRandom(*des_bv);
 	return;
 }
+
 static void MultiVecDestroy (BV *des_bv, int num_vec, struct OPS_ *ops)
 { 
 	BVDestroy(des_bv);
 	return;
 }
+
 static void MultiVecView (BV x, int start, int end, struct OPS_ *ops)
 {
 	BVSetActiveColumns(x,start,end);
 	BVView(x,PETSC_VIEWER_STDOUT_WORLD);
 	return;
 }
+
 static void MultiVecLocalInnerProd (char nsdIP, 
 		BV x, BV y, int is_vec, int *start, int *end, 
 		double *inner_prod, int ldIP, struct OPS_ *ops)
@@ -73,12 +76,14 @@ static void MultiVecLocalInnerProd (char nsdIP,
     BVRestoreArrayRead(x,&x_array);
 	return;
 }
+
 static void MultiVecSetRandomValue (BV x, int start, int end, struct OPS_ *ops)
 {
 	BVSetActiveColumns(x,start,end);
 	BVSetRandom(x);
 	return;
 }
+
 static void MultiVecAxpby (double alpha, BV x, 
 		double beta, BV y, int *start, int *end, struct OPS_ *ops)
 {
@@ -129,6 +134,7 @@ static void MultiVecAxpby (double alpha, BV x,
 
     return;
 }
+
 static void MatDotMultiVec (Mat mat, BV x, 
 		BV y, int *start, int *end, struct OPS_ *ops)
 {
@@ -177,6 +183,7 @@ static void MatDotMultiVec (Mat mat, BV x,
 	}
 	return;
 }
+
 static void MatTransDotMultiVec (Mat mat, BV x, 
 		BV y, int *start, int *end, struct OPS_ *ops)
 {
@@ -208,6 +215,7 @@ static void MatTransDotMultiVec (Mat mat, BV x,
 	}
 	return;
 }
+
 static void MultiVecLinearComb (BV x, BV y, int is_vec, 
 		int    *start, int *end, 
 		double *coef , int ldc , 
@@ -247,28 +255,33 @@ static void MultiVecLinearComb (BV x, BV y, int is_vec,
     BVRestoreArray(y, &y_array);
     return;
 }
+
 /* Encapsulation */
 static void MatView_GCGE (void *mat, struct OPS_ *ops)
 {
 	MatView((Mat)mat,PETSC_VIEWER_STDOUT_WORLD);
 	return;
 }
+
 /* multi-vec */
 static void MultiVecCreateByMat_GCGE (void ***des_vec, int num_vec, void *src_mat, struct OPS_ *ops)
 {
 	MultiVecCreateByMat ((BV*)des_vec,num_vec,(Mat)src_mat,ops);		
 	return;
 }
+
 static void MultiVecDestroy_GCGE (void ***des_vec, int num_vec, struct OPS_ *ops)
 {
 	MultiVecDestroy ((BV*)des_vec,num_vec,ops);
 	return;
 }
+
 static void MultiVecView_GCGE (void **x, int start, int end, struct OPS_ *ops)
 {
 	MultiVecView ((BV)x,start,end,ops);
 	return;
 }
+
 static void MultiVecLocalInnerProd_GCGE (char nsdIP, 
 		void **x, void **y, int is_vec, int *start, int *end, 
 		double *inner_prod, int ldIP, struct OPS_ *ops)
@@ -278,29 +291,34 @@ static void MultiVecLocalInnerProd_GCGE (char nsdIP,
 			inner_prod,ldIP,ops);
 	return;
 }
+
 static void MultiVecSetRandomValue_GCGE (void **x, int start, int end, struct OPS_ *ops)
 {
 	MultiVecSetRandomValue ((BV)x,start,end,ops);
 	return;
 }
+
 static void MultiVecAxpby_GCGE (double alpha, void **x, 
 		double beta, void **y, int *start, int *end, struct OPS_ *ops)
 {
 	MultiVecAxpby (alpha,(BV)x,beta,(BV)y,start,end,ops);
 	return;
 }
+
 static void MatDotMultiVec_GCGE (void *mat, void **x, 
 		void **y, int *start, int *end, struct OPS_ *ops)
 {
 	MatDotMultiVec ((Mat)mat,(BV)x,(BV)y,start,end,ops);
 	return;
 }
+
 static void MatTransDotMultiVec_GCGE (void *mat, void **x, 
 		void **y, int *start, int *end, struct OPS_ *ops)
 {
 	MatTransDotMultiVec ((Mat)mat,(BV)x,(BV)y,start,end,ops);
 	return;
 }
+
 static void MultiVecLinearComb_GCGE (
 		void **x , void **y, int is_vec, 
 		int    *start, int  *end, 
@@ -317,31 +335,30 @@ static void MultiVecLinearComb_GCGE (
 }
 
 static int GetOptionFromCommandLine_GCGE (
-		const char *name, char type, void *value,
-		int argc, char* argv[], struct OPS_ *ops)
+        const char *name, char type, void *value,
+        int argc, char* argv[], struct OPS_ *ops)
 {
-	PetscBool set;
-	int *int_value; double *dbl_value; char *str_value; 
-	switch (type) {
-		case 'i':
-			int_value = (int*)value; 
-			PetscOptionsGetInt(NULL, NULL, name, int_value, &set);
-			break;
-		case 'f':
-			dbl_value = (double*)value; 
-			PetscOptionsGetReal(NULL, NULL, name, dbl_value, &set);
-			break;
-		case 's':
-			str_value = (char*) value;
-			PetscOptionsGetString(NULL, NULL, name, str_value, 8, &set);
-			//set = DefaultGetOptionFromCommandLine(name, type, value, argc, argv, ops);
-			break;
+    PetscBool set = PETSC_TRUE;
+    int *int_value; double *dbl_value; char *str_value; 
+    switch (type) {
+        case 'i':
+            int_value = (int*)value;
+            PetscOptionsGetInt(NULL, NULL, name, int_value, &set);
+            break;
+        case 'f':
+            dbl_value = (double*)value;
+            PetscOptionsGetReal(NULL, NULL, name, dbl_value, &set);
+            break;
+        case 's':
+            str_value = (char*) value;
+            PetscOptionsGetString(NULL, NULL, name, str_value, 8, &set);
+            //set = DefaultGetOptionFromCommandLine(name, type, value, argc, argv, ops);
+            break;
         default:
             break;
-	}	        
-	return set;
+    }
+    return set;
 }
-
 
 PetscErrorCode EPSSetUp_GCGE(EPS eps)
 {
@@ -514,6 +531,7 @@ PetscErrorCode EPSSetFromOptions_GCGE(PetscOptionItems *PetscOptionsObject,EPS e
     ierr = PetscOptionsTail();CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
+
 /*
    set shift
  */
@@ -535,6 +553,7 @@ PetscErrorCode EPSGCGESetShift(EPS eps,PetscBool shift)
     ierr = PetscTryMethod(eps,"EPSGCGESetShift_C",(EPS,PetscBool),(eps,shift));CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
+
 static PetscErrorCode EPSGCGEGetShift_GCGE(EPS eps,PetscBool *shift)
 {
     EPS_GCGE *gcge = (EPS_GCGE*)eps->data;
@@ -543,6 +562,7 @@ static PetscErrorCode EPSGCGEGetShift_GCGE(EPS eps,PetscBool *shift)
     *shift = gcge->autoshift;
     PetscFunctionReturn(0);
 }
+
 PetscErrorCode EPSGCGEGetShift(EPS eps,PetscBool *shift)
 {
     PetscErrorCode ierr;
