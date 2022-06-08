@@ -1,4 +1,4 @@
-#include <slepc/private/epsimpl.h> 
+#include <slepc/private/epsimpl.h>
 #include "gcge.h"
 #include <assert.h>
 #include "ops_eig_sol_gcg.h"
@@ -19,7 +19,6 @@ typedef struct {
     PetscBool            print;
     PetscBool            printtime;
     EPSGCGEOrthMethod    orthmethod;
-
 } EPS_GCGE;
 
 /* multi-vec */
@@ -320,18 +319,18 @@ static void MatTransDotMultiVec_GCGE (void *mat, void **x,
 }
 
 static void MultiVecLinearComb_GCGE (
-		void **x , void **y, int is_vec, 
-		int    *start, int  *end, 
-		double *coef , int  ldc , 
-		double *beta , int  incb, struct OPS_ *ops)
+        void **x , void **y, int is_vec,
+        int    *start, int  *end,
+        double *coef , int  ldc ,
+        double *beta , int  incb, struct OPS_ *ops)
 {
-        //assert(x!=y);
-	MultiVecLinearComb (
-			(BV)x, (BV)y, is_vec, 
-			start, end , 
-			coef , ldc , 
-			beta , incb, ops);
-	return;
+    //assert(x!=y);
+    MultiVecLinearComb (
+            (BV)x, (BV)y, is_vec,
+            start, end ,
+            coef , ldc ,
+            beta , incb, ops);
+    return;
 }
 
 static int GetOptionFromCommandLine_GCGE (
@@ -339,7 +338,9 @@ static int GetOptionFromCommandLine_GCGE (
         int argc, char* argv[], struct OPS_ *ops)
 {
     PetscBool set = PETSC_TRUE;
-    int *int_value; double *dbl_value; char *str_value; 
+    int *int_value;
+    double *dbl_value;
+    char *str_value;
     switch (type) {
         case 'i':
             int_value = (int*)value;
@@ -364,7 +365,7 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
 {
     PetscErrorCode ierr;
     PetscBool      isshift;
-    EPS_GCGE     	*gcge = (EPS_GCGE*)eps->data;
+    EPS_GCGE       *gcge = (EPS_GCGE*)eps->data;
     PetscFunctionBegin;
     EPSCheckHermitianDefinite(eps);
     ierr = PetscObjectTypeCompare((PetscObject)eps->st,STSHIFT,&isshift);CHKERRQ(ierr);
@@ -384,25 +385,58 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
             gcge->tol_gcg[0] = eps->tol;
         }
     }
-    eps->ncv = 2*eps->nev;
-    eps->mpd = eps->ncv;
+
     if (eps->max_it==PETSC_DEFAULT) eps->max_it = PETSC_MAX_INT;
     gcge->nevConv = eps->nev;
-    gcge->block_size = (gcge->nevConv)>20?((PetscInt)((gcge->nevConv)/3)):((PetscInt)((gcge->nevConv)/2));
-    gcge->nevInit = 3*(gcge->block_size);
-    gcge->nevMax = (gcge->nevInit)+(gcge->nevConv);
-    if (eps->nev<5) {
+    //if (eps->nev > eps->n) {
+    //    SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_SUP," 'nev' must be less than the dimension of the matrix\n");
+    //}
+    if (eps->nev >= 6) {
+        if (eps->nev < 20) {
+            gcge->block_size = (PetscInt)((gcge->nevConv)/3);
+        }
+        else if (eps->nev < 1000) {
+            gcge->block_size = (PetscInt)((gcge->nevConv)/5);
+        }
+        else if (eps->nev < 4000) {
+            gcge->block_size = 100;
+        }
+        else if (eps->nev < 10000) {
+            gcge->block_size = 200;
+        }
+        gcge->nevInit = 3*(gcge->block_size);
+        gcge->nevMax = (gcge->nevInit)+(gcge->nevConv);
+        if (eps->ncv!=PETSC_DEFAULT)  gcge->nevMax = eps->ncv;
+        eps->ncv = gcge->nevMax;
+        if (gcge->nevInit < 3*gcge->block_size && eps->ncv!=gcge->nevInit) {
+            SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_LIB,"'ncv' in GCGE must satisfy 'ncv==nevInit' when nevInit <= 3*blockSize\n");
+        }
+        else if (gcge->nevInit > eps->ncv) {
+            SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_LIB,"'ncv' in GCGE must satisfy 'ncv>=nevInit'\n");
+        }
+        else if  (eps->ncv > gcge->nevConv+gcge->nevInit) {
+            SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_LIB,"'ncv' in GCGE must satisfy 'ncv<=nevConv+nevInit'\n");
+        }
+
+    }
+    else {
         gcge->block_size = gcge->nevConv;
         gcge->nevInit = 2*gcge->nevConv;
         gcge->nevMax = gcge->nevInit;
+        if (eps->ncv!=PETSC_DEFAULT)  gcge->nevMax = eps->ncv;
+        eps->ncv = gcge->nevMax;
+        if (eps->ncv!=gcge->nevInit) {
+            SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_LIB,"'ncv' in GCGE must satisfy 'ncv == 2*nev' when 'nev<= 6'\n");
+        }
     }
     gcge->gapMin = 1e-5;
     gcge->max_iter_gcg = eps->max_it;
 
     if (!eps->V) { ierr = EPSGetBV(eps,&eps->V);CHKERRQ(ierr); }
+
+    eps->mpd = eps->nev;
     ierr = EPSAllocateSolution(eps,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
-
 }
 
 PetscErrorCode EPSSolve_GCGE(EPS eps)
@@ -451,6 +485,9 @@ PetscErrorCode EPSSolve_GCGE(EPS eps)
     Mat      slepc_matA, slepc_matB;
     ierr = EPSGetOperators(eps,&slepc_matA,&slepc_matB);CHKERRQ(ierr);
     ierr = MatGetSize(slepc_matA,&M,&N);
+    if (nevMax > M || nevMax > N) {
+      SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_SUP," 'nev' must be less than the dimension of the matrix\n");
+    }
     ops = slepc_ops; A = (void*)(slepc_matA); B = (void*)(slepc_matB);
     double *eval; 
     void **evec;
@@ -714,7 +751,6 @@ SLEPC_EXTERN PetscErrorCode EPSCreate_GCGE(EPS eps)
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGESetOrthMethod_C",EPSGCGESetOrthMethod_GCGE);CHKERRQ(ierr);
     ierr = PetscObjectComposeFunction((PetscObject)eps,"EPSGCGEGetOrthMethod_C",EPSGCGEGetOrthMethod_GCGE);CHKERRQ(ierr);
     PetscFunctionReturn(0);
-
 }
 
 
