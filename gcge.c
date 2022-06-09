@@ -391,7 +391,7 @@ PetscErrorCode EPSSetUp_GCGE(EPS eps)
     //if (eps->nev > eps->n) {
     //    SETERRQ(PetscObjectComm((PetscObject)eps),PETSC_ERR_SUP," 'nev' must be less than the dimension of the matrix\n");
     //}
-    if (eps->nev >= 6) {
+    if (eps->nev > 6) {
         if (eps->nev < 20) {
             gcge->block_size = (PetscInt)((gcge->nevConv)/3);
         }
